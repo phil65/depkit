@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 import sys
 import tempfile
-from typing import Self
+from typing import TYPE_CHECKING, Self
 
 from depkit.exceptions import DependencyError
 from depkit.parser import parse_script_metadata
@@ -17,6 +17,10 @@ from depkit.utils import (
     scan_directory_deps,
     verify_paths,
 )
+
+
+if TYPE_CHECKING:
+    import types
 
 
 try:
@@ -60,10 +64,26 @@ class DependencyManager:
         """Set up dependencies on context entry."""
         import asyncio
 
+        if not asyncio.get_event_loop_policy()._local._loop:  # type: ignore
+            asyncio.set_event_loop(asyncio.new_event_loop())
+
+        loop = asyncio.get_event_loop()
+        if loop.is_running():
+            msg = (
+                "Synchronous context manager cannot be used in async context. "
+                "Use 'async with' instead."
+            )
+            raise RuntimeError(msg)
+
         asyncio.run(self.setup())
         return self
 
-    def __exit__(self, *exc: object) -> None:
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: types.TracebackType | None,
+    ) -> None:
         """Clean up on context exit."""
         self.cleanup()
 
@@ -72,7 +92,12 @@ class DependencyManager:
         await self.setup()
         return self
 
-    async def __aexit__(self, *exc: object) -> None:
+    async def __aexit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: types.TracebackType | None,
+    ) -> None:
         """Clean up on async context exit."""
         self.cleanup()
 
