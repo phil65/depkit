@@ -1,15 +1,9 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
-
 import pytest
 
-from depkit import DependencyManager, ScriptError
-from depkit.parser import parse_pep723_deps
-
-
-if TYPE_CHECKING:
-    from pathlib import Path
+from depkit.exceptions import ScriptError
+from depkit.parser import parse_pep723_deps, parse_script_metadata
 
 
 # Test data
@@ -32,19 +26,13 @@ SCRIPT_SINGLE_DEP = """\
 # ///
 """
 
-SCRIPT_SINGLE_DEP_2 = """\
-# /// script
-# dependencies = ["pandas>=2.0.0"]
-# ///
-"""
-
-INVALID_TOML = """\
+SCRIPT_INVALID_TOML = """\
 # /// script
 # dependencies = ["incomplete
 # ///
 """
 
-MULTIPLE_BLOCKS = """\
+SCRIPT_MULTIPLE_BLOCKS = """\
 # /// script
 # dependencies = ["pkg1"]
 # ///
@@ -54,50 +42,46 @@ MULTIPLE_BLOCKS = """\
 # ///
 """
 
-PYTHON_VERSION_REQ = """\
+SCRIPT_PYTHON_VERSION = """\
 # /// script
 # requires-python = ">=3.12"
 # dependencies = ["requests"]
 # ///
 """
 
+SCRIPT_NO_DEPS = "print('hello')"
 
-class TestPEP723Dependencies:
+
+class TestPEP723Parser:
     def test_parse_deps(self) -> None:
         """Test parsing of PEP 723 dependencies."""
         deps = list(parse_pep723_deps(SCRIPT_WITH_DEPS))
         assert deps == ["requests>=2.31.0", "pandas>=2.0.0"]
 
-    def test_scan_directory(self, tmp_path: Path) -> None:
-        """Test scanning directory for PEP 723 dependencies."""
-        # Create test files
-        file1 = tmp_path / "test1.py"
-        file1.write_text(SCRIPT_SINGLE_DEP)
-
-        file2 = tmp_path / "test2.py"
-        file2.write_text(SCRIPT_SINGLE_DEP_2)
-
-        manager = DependencyManager(extra_paths=[str(tmp_path)])
-        deps = manager.scan_for_dependencies(tmp_path)
-        assert deps == {"requests>=2.31.0", "pandas>=2.0.0"}
+    def test_parse_metadata(self) -> None:
+        """Test parsing complete metadata."""
+        metadata = parse_script_metadata(SCRIPT_WITH_DEPS)
+        assert metadata.dependencies == ["requests>=2.31.0", "pandas>=2.0.0"]
+        assert metadata.python_version == ">=3.12"
 
     def test_invalid_toml(self) -> None:
         """Test handling of invalid TOML in script metadata."""
         with pytest.raises(ScriptError, match="Invalid TOML"):
-            list(parse_pep723_deps(INVALID_TOML))
+            parse_script_metadata(SCRIPT_INVALID_TOML)
 
     def test_multiple_metadata_blocks(self) -> None:
         """Test handling of multiple script metadata blocks."""
         with pytest.raises(ScriptError, match="Multiple script metadata blocks"):
-            list(parse_pep723_deps(MULTIPLE_BLOCKS))
+            parse_script_metadata(SCRIPT_MULTIPLE_BLOCKS)
 
-    def test_python_version_requirement(self) -> None:
-        """Test parsing of Python version requirements."""
-        deps = list(parse_pep723_deps(PYTHON_VERSION_REQ))
-        assert deps == ["requests"]
+    def test_python_version_only(self) -> None:
+        """Test parsing Python version without dependencies."""
+        metadata = parse_script_metadata(SCRIPT_PYTHON_VERSION)
+        assert metadata.dependencies == ["requests"]
+        assert metadata.python_version == ">=3.12"
 
-    def test_no_deps_block(self) -> None:
-        """Test file without dependency block."""
-        content = "print('hello')"
-        deps = list(parse_pep723_deps(content))
-        assert not deps
+    def test_no_metadata_block(self) -> None:
+        """Test file without metadata block."""
+        metadata = parse_script_metadata(SCRIPT_NO_DEPS)
+        assert not metadata.dependencies
+        assert metadata.python_version is None
