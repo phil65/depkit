@@ -253,3 +253,26 @@ class TestDependencyManager:
             assert sys.path.count(str(test_dir)) == 1
         finally:
             sys.path[:] = original_path
+
+    def test_sync_context_manager(self, tmp_path: Path) -> None:
+        """Test synchronous context manager."""
+        with DependencyManager(
+            scripts=[str(tmp_path / "test.py")],
+            requirements=["pandas"],
+        ) as manager:
+            assert "pandas" in manager.requirements
+
+    def test_sync_context_manager_error(
+        self,
+        mock_subprocess: mock.MagicMock,
+        mock_importlib: mock.MagicMock,
+    ) -> None:
+        """Test synchronous context manager error handling."""
+        mock_importlib.side_effect = importlib.metadata.PackageNotFoundError()
+        mock_subprocess.side_effect = subprocess.CalledProcessError(1, [], stderr="Error")
+
+        with (
+            pytest.raises(DependencyError, match="Failed to install requirements"),
+            DependencyManager(requirements=["nonexistent-package"]),
+        ):
+            pass
