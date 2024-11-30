@@ -41,6 +41,13 @@ class DependencyManager:
         self._installed: set[str] = set()
         self._is_uv = self._detect_uv_environment()
 
+    def __repr__(self):
+        return (
+            f"{self.__class__.__name__}(prefer_uv={self.prefer_uv}, "
+            f"requirements={self.requirements}, extra_paths={self.extra_paths}, "
+            f"pip_index_url={self.pip_index_url})"
+        )
+
     async def __aenter__(self) -> Self:
         """Set up dependencies on context entry."""
         await self.setup()
