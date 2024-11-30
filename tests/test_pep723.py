@@ -4,7 +4,8 @@ from typing import TYPE_CHECKING
 
 import pytest
 
-from depkit.depmanager import DependencyManager, ScriptError
+from depkit import DependencyManager, ScriptError
+from depkit.parser import parse_pep723_deps
 
 
 if TYPE_CHECKING:
@@ -64,8 +65,7 @@ PYTHON_VERSION_REQ = """\
 class TestPEP723Dependencies:
     def test_parse_deps(self) -> None:
         """Test parsing of PEP 723 dependencies."""
-        manager = DependencyManager()
-        deps = list(manager.parse_pep723_deps(SCRIPT_WITH_DEPS))
+        deps = list(parse_pep723_deps(SCRIPT_WITH_DEPS))
         assert deps == ["requests>=2.31.0", "pandas>=2.0.0"]
 
     def test_scan_directory(self, tmp_path: Path) -> None:
@@ -83,25 +83,21 @@ class TestPEP723Dependencies:
 
     def test_invalid_toml(self) -> None:
         """Test handling of invalid TOML in script metadata."""
-        manager = DependencyManager()
         with pytest.raises(ScriptError, match="Invalid TOML"):
-            list(manager.parse_pep723_deps(INVALID_TOML))
+            list(parse_pep723_deps(INVALID_TOML))
 
     def test_multiple_metadata_blocks(self) -> None:
         """Test handling of multiple script metadata blocks."""
-        manager = DependencyManager()
         with pytest.raises(ScriptError, match="Multiple script metadata blocks"):
-            list(manager.parse_pep723_deps(MULTIPLE_BLOCKS))
+            list(parse_pep723_deps(MULTIPLE_BLOCKS))
 
     def test_python_version_requirement(self) -> None:
         """Test parsing of Python version requirements."""
-        manager = DependencyManager()
-        deps = list(manager.parse_pep723_deps(PYTHON_VERSION_REQ))
+        deps = list(parse_pep723_deps(PYTHON_VERSION_REQ))
         assert deps == ["requests"]
 
     def test_no_deps_block(self) -> None:
         """Test file without dependency block."""
         content = "print('hello')"
-        manager = DependencyManager()
-        deps = list(manager.parse_pep723_deps(content))
+        deps = list(parse_pep723_deps(content))
         assert not deps

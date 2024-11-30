@@ -5,13 +5,14 @@ import importlib
 import importlib.metadata
 import logging
 import os
-import re
 import shutil
 import subprocess
 import sys
 import tempfile
-import tomllib
 from typing import TYPE_CHECKING, Self
+
+from depkit.exceptions import DependencyError
+from depkit.parser import parse_pep723_deps
 
 
 try:
@@ -22,26 +23,10 @@ except (ImportError, ModuleNotFoundError):
 type Command = Sequence[str]
 
 if TYPE_CHECKING:
-    from collections.abc import Iterator, Sequence
+    from collections.abc import Sequence
 
-# PEP 723 regex pattern
-SCRIPT_REGEX = (
-    r"(?m)^# /// (?P<type>[a-zA-Z0-9-]+)$\s"
-    r"(?P<content>(^#(| .*)$\s)+)^# ///$"
-)
+
 logger = logging.getLogger(__name__)
-
-
-class DependencyError(Exception):
-    """Error during dependency management."""
-
-
-class ScriptError(DependencyError):
-    """Error related to script loading/processing."""
-
-
-class ImportPathError(DependencyError):
-    """Error related to import path resolution."""
 
 
 class DependencyManager:
@@ -92,6 +77,23 @@ class DependencyManager:
         """Clean up on async context exit."""
         self.cleanup()
 
+    def install(self) -> None:
+        """Install dependencies and set up environment.
+
+        A simpler alternative to the context manager. Does the same setup
+        but requires manual cleanup via uninstall().
+
+        Raises:
+            DependencyError: If setup fails
+        """
+        import asyncio
+
+        asyncio.run(self.setup())
+
+    def uninstall(self) -> None:
+        """Clean up installed dependencies and temporary files."""
+        self.cleanup()
+
     def _setup_script_modules(self) -> None:
         """Set up importable modules from scripts."""
         if not self.scripts:
@@ -113,7 +115,7 @@ class DependencyManager:
                 self._module_map[module_name] = str(module_file)
 
                 # Collect PEP 723 dependencies and add to requirements
-                self.requirements.extend(self.parse_pep723_deps(content))
+                self.requirements.extend(parse_pep723_deps(content))
 
             except Exception as exc:  # noqa: BLE001
                 logger.warning("Failed to process script %s: %s", script_path, exc)
@@ -149,117 +151,11 @@ class DependencyManager:
             )
             raise DependencyError(msg)
 
-    def parse_pep723_deps(self, content: str) -> Iterator[str]:
-        """Parse dependency declarations from Python content according to PEP 723.
-
-        Format:
-            # /// script
-            # dependencies = [
-            #   "requests<3",
-            #   "rich",
-            # ]
-            # requires-python = ">=3.11"
-            # ///
-
-        Args:
-            content: Python source code content
-
-        Yields:
-            Dependency specifications
-
-        Raises:
-            ScriptError: If the script metadata is invalid or malformed
-        """
-
-        def extract_toml(match: re.Match[str]) -> str:
-            """Extract TOML content from comment block."""
-            return "".join(
-                line[2:] if line.startswith("# ") else line[1:]
-                for line in match.group("content").splitlines(keepends=True)
-            )
-
-        # Find script metadata blocks
-        matches = list(
-            filter(
-                lambda m: m.group("type") == "script", re.finditer(SCRIPT_REGEX, content)
-            )
-        )
-
-        if len(matches) > 1:
-            msg = "Multiple script metadata blocks found"
-            raise ScriptError(msg)
-
-        if not matches:
-            # Fall back to informal format for backwards compatibility
-            yield from self._parse_informal_deps(content)
-            return
-
-        try:
-            # Parse TOML content
-            toml_content = extract_toml(matches[0])
-            metadata = tomllib.loads(toml_content)
-
-            # Handle dependencies
-            if deps := metadata.get("dependencies"):
-                if not isinstance(deps, list):
-                    msg = "dependencies must be a list"
-                    raise ScriptError(msg)  # noqa: TRY301
-                yield from deps
-
-            # Store Python version requirement if needed
-            if python_req := metadata.get("requires-python"):
-                if not isinstance(python_req, str):
-                    msg = "requires-python must be a string"
-                    raise ScriptError(msg)  # noqa: TRY301
-                # Could store this for version validation if needed
-                logger.debug("Script requires Python %s", python_req)
-
-        except tomllib.TOMLDecodeError as exc:
-            msg = f"Invalid TOML in script metadata: {exc}"
-            raise ScriptError(msg) from exc
-        except Exception as exc:
-            msg = f"Error parsing script metadata: {exc}"
-            raise ScriptError(msg) from exc
-
-    def _parse_informal_deps(self, content: str) -> Iterator[str]:
-        """Parse informal dependency declarations (legacy format).
-
-        Format:
-            # Dependencies:
-            # requests>=2.28.0
-            # pandas~=2.0.0
-
-        Args:
-            content: Python source code content
-
-        Yields:
-            Dependency specifications
-        """
-        lines = content.splitlines()
-        in_deps = False
-
-        for line in lines:
-            stripped = line.strip()
-            if not stripped or stripped.startswith("#"):
-                if stripped == "# Dependencies:":
-                    in_deps = True
-                    continue
-
-                if in_deps and stripped.startswith("#"):
-                    if req := stripped.lstrip("#").strip():
-                        yield req
-                else:
-                    in_deps = False
-            else:
-                # First non-comment line ends informal deps block
-                break
-
     def collect_file_dependencies(self, path: str | os.PathLike[str]) -> set[str]:
         """Collect dependencies from a Python file."""
         try:
-            # Use UTF-8 encoding with error handling
             content = Path(path).read_text(encoding="utf-8", errors="ignore")
-            return set(self.parse_pep723_deps(content))
+            return set(parse_pep723_deps(content))
         except Exception as exc:  # noqa: BLE001
             logger.debug("Failed to parse dependencies from %s: %s", path, exc)
             return set()

@@ -30,17 +30,46 @@
 
 # DependencyManager
 
-A flexible Python dependency manager that handles runtime dependencies, script imports, and supports both pip and uv package installers.
+A flexible Python dependency manager that handles runtime dependencies and script imports.
+
+## Quick Start
+
+```python
+from depkit import DependencyManager
+
+# Simple usage
+manager = DependencyManager(requirements=["requests>=2.31.0"])
+manager.install()
+import requests
+# ... do your work ...
+manager.uninstall()  # optional cleanup
+```
+
+## Recommended Usage (Context Managers)
+
+```python
+# Synchronous
+with DependencyManager(requirements=["requests"]) as manager:
+    import requests
+    # ... do your work ...
+    # cleanup happens automatically
+
+# Asynchronous
+async with DependencyManager(requirements=["requests"]) as manager:
+    import requests
+    # ... do your work ...
+    # cleanup happens automatically
+```
 
 ## Features
 
+- Simple install/uninstall methods for quick usage
+- Context managers for proper resource management
 - PEP 723 dependency declaration support
-- Automatic dependency installation
 - Support for both pip and uv package managers
 - Custom pip index URL support
 - Temporary script importing
 - Path management for imports
-- Async context manager interface
 
 ## Installation
 
