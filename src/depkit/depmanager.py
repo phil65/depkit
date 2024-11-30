@@ -12,7 +12,7 @@ import tempfile
 from typing import TYPE_CHECKING, Self
 
 from depkit.exceptions import DependencyError
-from depkit.parser import parse_pep723_deps
+from depkit.parser import check_python_version, parse_pep723_deps, parse_script_metadata
 
 
 try:
@@ -101,8 +101,15 @@ class DependencyManager:
 
         for script_path in self.scripts:
             try:
-                # Get content using UPath
                 content = Path(script_path).read_text()
+                metadata = parse_script_metadata(content)
+
+                # Add dependencies
+                self.requirements.extend(metadata.dependencies)
+
+                # Check Python version if specified
+                if metadata.python_version:
+                    check_python_version(metadata.python_version, script_path)
 
                 # Extract base module name from filename
                 base_name = Path(script_path).stem
@@ -121,9 +128,6 @@ class DependencyManager:
 
                 # Map module name to file
                 self._module_map[base_name] = str(module_file)
-
-                # Collect PEP 723 dependencies and add to requirements
-                self.requirements.extend(parse_pep723_deps(content))
 
             except FileNotFoundError:
                 logger.warning("Script not found: %s", script_path)

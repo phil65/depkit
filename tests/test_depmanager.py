@@ -19,6 +19,13 @@ SCRIPT_SINGLE_DEP = """\
 # ///
 """
 
+SCRIPT_INVALID_PYTHON = """\
+# /// script
+# requires-python = ">=9999.0"  # Future Python!
+# dependencies = ["requests"]
+# ///
+"""
+
 if TYPE_CHECKING:
     from collections.abc import Generator
     from pathlib import Path
@@ -341,3 +348,17 @@ class TestDependencyManager:
         ):
             async with DependencyManager(scripts=[str(script1), str(script2)]):
                 pass
+
+    def test_python_version_requirement_fail(self, tmp_path: Path) -> None:
+        """Test Python version requirement validation."""
+        script = tmp_path / "test.py"
+        script.write_text(SCRIPT_INVALID_PYTHON)
+
+        with (
+            pytest.raises(
+                DependencyError,
+                match="requires Python >=9999.0, but current version is.*",
+            ),
+            DependencyManager(scripts=[str(script)]),
+        ):
+            pass
