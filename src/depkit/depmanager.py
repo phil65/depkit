@@ -104,24 +104,37 @@ class DependencyManager:
                 # Get content using UPath
                 content = Path(script_path).read_text()
 
-                # Extract module name from filename
-                module_name = Path(script_path).stem
+                # Extract base module name from filename
+                base_name = Path(script_path).stem
+
+                # Check for name collision
+                if base_name in self._module_map:
+                    msg = (
+                        f"Duplicate module name '{base_name}' from {script_path}. "
+                        f"Already used by {self._module_map[base_name]}"
+                    )
+                    raise DependencyError(msg)  # noqa: TRY301
 
                 # Save to temporary location
-                module_file = self._scripts_dir / f"{module_name}.py"
+                module_file = self._scripts_dir / f"{base_name}.py"
                 module_file.write_text(content)
 
                 # Map module name to file
-                self._module_map[module_name] = str(module_file)
+                self._module_map[base_name] = str(module_file)
 
                 # Collect PEP 723 dependencies and add to requirements
                 self.requirements.extend(parse_pep723_deps(content))
 
-            except Exception as exc:  # noqa: BLE001
-                logger.warning("Failed to process script %s: %s", script_path, exc)
+            except FileNotFoundError:
+                logger.warning("Script not found: %s", script_path)
+            except Exception as exc:
+                if isinstance(exc, DependencyError):
+                    raise
+                msg = f"Failed to process script {script_path}: {exc}"
+                logger.warning(msg)
 
         # Add scripts directory to Python path
-        if self._scripts_dir:
+        if self._scripts_dir and self._module_map:  # Only if we have valid scripts
             sys.path.insert(0, str(self._scripts_dir))
 
     def _validate_script(self, content: str, path: str) -> None:

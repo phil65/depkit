@@ -140,11 +140,16 @@ class TestDependencyManager:
             mock_subprocess.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_setup_with_nonexistent_script(self) -> None:
+    async def test_setup_with_nonexistent_script(
+        self, caplog: pytest.LogCaptureFixture
+    ) -> None:
         """Test setup with nonexistent script."""
+        # Scripts that don't exist should be skipped with a warning
         async with DependencyManager(scripts=["/nonexistent/script.py"]) as manager:
-            # Should handle missing script gracefully
             assert not manager.requirements
+
+        # Check that a warning was logged
+        assert "Script not found: /nonexistent/script.py" in caplog.text
 
     @pytest.mark.asyncio
     async def test_setup_with_invalid_script(self, tmp_path: Path) -> None:
@@ -257,10 +262,14 @@ class TestDependencyManager:
 
     def test_sync_context_manager(self, tmp_path: Path) -> None:
         """Test synchronous context manager."""
+        script = tmp_path / "test.py"
+        script.write_text(SCRIPT_SINGLE_DEP)  # Create test file first
+
         with DependencyManager(
-            scripts=[str(tmp_path / "test.py")],
+            scripts=[str(script)],
             requirements=["pandas"],
         ) as manager:
+            assert "requests>=2.31.0" in manager.requirements
             assert "pandas" in manager.requirements
 
     def test_sync_context_manager_error(
@@ -310,3 +319,25 @@ class TestDependencyManager:
         manager = DependencyManager(requirements=["nonexistent-package"])
         with pytest.raises(DependencyError, match="Failed to install requirements"):
             manager.install()
+
+    @pytest.mark.asyncio
+    async def test_duplicate_module_names(self, tmp_path: Path) -> None:
+        """Test handling of duplicate module names."""
+        # Create two scripts with the same stem name in different directories
+        dir1 = tmp_path / "dir1"
+        dir2 = tmp_path / "dir2"
+        dir1.mkdir()
+        dir2.mkdir()
+
+        script1 = dir1 / "module.py"
+        script2 = dir2 / "module.py"
+
+        script1.write_text("print('script1')")
+        script2.write_text("print('script2')")
+
+        with pytest.raises(
+            DependencyError,
+            match="Duplicate module name 'module' from.*Already used by.*",
+        ):
+            async with DependencyManager(scripts=[str(script1), str(script2)]):
+                pass
