@@ -135,7 +135,19 @@ class DependencyManager:
             raise DependencyError(msg)
 
     def parse_pep723_deps(self, content: str) -> Iterator[str]:
-        """Parse PEP 723 dependency declarations from Python content.
+        """Parse dependency declarations from Python content.
+
+        Supports two formats:
+        1. PEP 723 format:
+            # /// requirements
+            # requests>=2.28.0
+            # pandas~=2.0.0
+            # ///
+
+        2. Informal format at file start:
+            # Dependencies:
+            # requests>=2.28.0
+            # pandas~=2.0.0
 
         Args:
             content: Python source code content
@@ -143,7 +155,20 @@ class DependencyManager:
         Yields:
             Dependency specifications
         """
-        # Look for dependencies block at start of file
+        import re
+
+        # First try PEP 723 format
+        pep723_pattern = r"# /// requirements\n(#[^\n]*\n)*# ///"
+
+        if match := re.search(pep723_pattern, content):
+            block = match.group(0)
+            # Process lines between markers, skip the markers themselves
+            for line in block.splitlines()[1:-1]:
+                if req := line.lstrip("#").strip():
+                    yield req
+            return
+
+        # Fall back to informal format at file start
         lines = content.splitlines()
         in_deps = False
 
@@ -155,14 +180,12 @@ class DependencyManager:
                     continue
 
                 if in_deps and stripped.startswith("#"):
-                    # Extract requirement from comment
-                    req = stripped.lstrip("#").strip()
-                    if req:
+                    if req := stripped.lstrip("#").strip():
                         yield req
                 else:
                     in_deps = False
             else:
-                # First non-comment line ends deps block
+                # First non-comment line ends informal deps block
                 break
 
     def collect_file_dependencies(self, path: str | os.PathLike[str]) -> set[str]:
