@@ -4,17 +4,22 @@ import importlib
 import importlib.metadata
 import logging
 import os
-import pathlib
 import shutil
 import subprocess
 import sys
+import tempfile
 from typing import TYPE_CHECKING, Self
 
+
+try:
+    from upath import UPath as Path
+except (ImportError, ModuleNotFoundError):
+    from pathlib import Path
 
 type Command = Sequence[str]
 
 if TYPE_CHECKING:
-    from collections.abc import Sequence
+    from collections.abc import Iterator, Sequence
 
 
 logger = logging.getLogger(__name__)
@@ -22,6 +27,14 @@ logger = logging.getLogger(__name__)
 
 class DependencyError(Exception):
     """Error during dependency management."""
+
+
+class ScriptError(DependencyError):
+    """Error related to script loading/processing."""
+
+
+class ImportPathError(DependencyError):
+    """Error related to import path resolution."""
 
 
 class DependencyManager:
@@ -32,6 +45,7 @@ class DependencyManager:
         prefer_uv: bool = False,
         requirements: list[str] | None = None,
         extra_paths: list[str] | None = None,
+        scripts: list[str] | None = None,
         pip_index_url: str | None = None,
     ) -> None:
         self.prefer_uv = prefer_uv
@@ -40,6 +54,9 @@ class DependencyManager:
         self.pip_index_url = pip_index_url
         self._installed: set[str] = set()
         self._is_uv = self._detect_uv_environment()
+        self.scripts = scripts or []
+        self._scripts_dir = Path(tempfile.mkdtemp(prefix="llmling_scripts_"))
+        self._module_map: dict[str, str] = {}  # Maps module names to file paths
 
     def __repr__(self):
         return (
@@ -55,7 +72,124 @@ class DependencyManager:
 
     async def __aexit__(self, *exc: object) -> None:
         """Clean up on context exit."""
+        self.cleanup()
         # Currently no cleanup needed, but good for future
+
+    def _setup_script_modules(self) -> None:
+        """Set up importable modules from scripts."""
+        if not self.scripts:
+            return
+
+        for script_path in self.scripts:
+            try:
+                # Get content using UPath
+                content = Path(script_path).read_text()
+
+                # Extract module name from filename
+                module_name = Path(script_path).stem
+
+                # Save to temporary location
+                module_file = self._scripts_dir / f"{module_name}.py"
+                module_file.write_text(content)
+
+                # Map module name to file
+                self._module_map[module_name] = str(module_file)
+
+                # Collect PEP 723 dependencies and add to requirements
+                self.requirements.extend(self.parse_pep723_deps(content))
+
+            except Exception as exc:  # noqa: BLE001
+                logger.warning("Failed to process script %s: %s", script_path, exc)
+
+        # Add scripts directory to Python path
+        if self._scripts_dir:
+            sys.path.insert(0, str(self._scripts_dir))
+
+    def _validate_script(self, content: str, path: str) -> None:
+        """Validate Python script content."""
+        import ast
+
+        try:
+            ast.parse(content)
+        except SyntaxError as exc:
+            msg = f"Invalid Python script {path}: {exc}"
+            raise DependencyError(msg) from exc
+
+    def _get_unique_module_name(self, name: str) -> str:
+        """Get unique module name."""
+        if name not in self._module_map:
+            return name
+        counter = 1
+        while f"{name}_{counter}" in self._module_map:
+            counter += 1
+        return f"{name}_{counter}"
+
+    def verify_import_path(self, import_path: str) -> None:
+        """Verify that an import path matches available modules."""
+        module_name = import_path.split(".")[0]
+        if module_name not in self._module_map:
+            msg = (
+                f"Import path {import_path!r} references unknown module. "
+                f"Available modules: {', '.join(sorted(self._module_map))}"
+            )
+            raise DependencyError(msg)
+
+    def parse_pep723_deps(self, content: str) -> Iterator[str]:
+        """Parse PEP 723 dependency declarations from Python content.
+
+        Args:
+            content: Python source code content
+
+        Yields:
+            Dependency specifications
+        """
+        # Look for dependencies block at start of file
+        lines = content.splitlines()
+        in_deps = False
+
+        for line in lines:
+            stripped = line.strip()
+            if not stripped or stripped.startswith("#"):
+                if stripped == "# Dependencies:":
+                    in_deps = True
+                    continue
+
+                if in_deps and stripped.startswith("#"):
+                    # Extract requirement from comment
+                    req = stripped.lstrip("#").strip()
+                    if req:
+                        yield req
+                else:
+                    in_deps = False
+            else:
+                # First non-comment line ends deps block
+                break
+
+    def collect_file_dependencies(self, path: str | os.PathLike[str]) -> set[str]:
+        """Collect dependencies from a Python file."""
+        try:
+            # Use UTF-8 encoding with error handling
+            content = Path(path).read_text(encoding="utf-8", errors="ignore")
+            return set(self.parse_pep723_deps(content))
+        except Exception as exc:  # noqa: BLE001
+            logger.debug("Failed to parse dependencies from %s: %s", path, exc)
+            return set()
+
+    def scan_for_dependencies(self, directory: str | os.PathLike[str]) -> set[str]:
+        """Recursively scan directory for PEP 723 dependencies."""
+        all_deps: set[str] = set()
+        dir_path = Path(directory)
+
+        # Don't scan site-packages or other system directories
+        if "site-packages" in str(dir_path):
+            return all_deps
+
+        try:
+            for path in dir_path.rglob("*.py"):
+                all_deps.update(self.collect_file_dependencies(path))
+        except Exception as exc:  # noqa: BLE001
+            logger.debug("Failed to scan %s for dependencies: %s", directory, exc)
+        return all_deps
 
     def _detect_uv_environment(self) -> bool:
         """Detect if we're running in a uv environment."""
@@ -159,7 +293,7 @@ class DependencyManager:
         for path in self.extra_paths:
             try:
                 # pathlib handles path normalization cross-platform
-                abs_path = pathlib.Path(path).resolve()
+                abs_path = Path(path).resolve()
                 if not abs_path.exists():
                     logger.warning("Path does not exist: %s", path)
                     continue
@@ -181,7 +315,7 @@ class DependencyManager:
         """
         for path in paths:
             try:
-                path_obj = pathlib.Path(path)
+                path_obj = Path(path)
                 if not path_obj.exists():
                     msg = f"Path does not exist: {path}"
                     raise DependencyError(msg)  # noqa: TRY301
@@ -211,24 +345,42 @@ class DependencyManager:
         return sys.path.copy()
 
     async def setup(self) -> None:
-        """Complete setup of dependencies.
-
-        This is the main entry point that should be called to set up
-        all dependencies. It:
-        1. Installs missing requirements
-        2. Updates Python path
-        3. Verifies all paths exist
-
-        Raises:
-            DependencyError: If setup fails
-        """
+        """Complete setup of dependencies."""
         try:
+            # First set up script modules to collect their dependencies
+            self._setup_script_modules()
+
+            # Collect all dependencies (explicit + PEP 723)
+            requirements = set(self.requirements)
+
+            # Add PEP 723 requirements from extra paths
+            for path in self.extra_paths:
+                if Path(path).is_dir():
+                    requirements.update(self.scan_for_dependencies(path))
+
+            # Update requirements with all found dependencies
+            self.requirements = sorted(requirements)
+
+            # Install requirements
             self.install_requirements()
+
+            # Update Python path
             self.update_python_path()
+
+            # Verify paths exist
             if self.extra_paths:
                 self.verify_paths(self.extra_paths)
+
         except Exception as exc:
+            self.cleanup()  # Ensure cleanup on error
             if isinstance(exc, DependencyError):
                 raise
             msg = f"Dependency setup failed: {exc}"
             raise DependencyError(msg) from exc
+
+    def cleanup(self) -> None:
+        """Clean up temporary files."""
+        if self._scripts_dir and self._scripts_dir.exists():
+            import shutil
+
+            shutil.rmtree(self._scripts_dir)

@@ -31,32 +31,6 @@ def temp_venv(tmp_path: Path) -> Generator[Path, None, None]:
         os.environ.pop("VIRTUAL_ENV", None)
 
 
-@pytest.fixture
-def settings() -> dict[str, Any]:
-    """Create test settings."""
-    return dict(
-        requirements=["pytest>=7.0.0", "mock>=5.0.0"],
-        extra_paths=["."],
-        prefer_uv=False,
-    )
-
-
-@pytest.fixture
-def mock_subprocess() -> Generator[mock.MagicMock, None, None]:
-    """Mock subprocess.run."""
-    with mock.patch("subprocess.run") as mock_run:
-        mock_run.return_value.returncode = 0
-        mock_run.return_value.stdout = "Successfully installed pytest-7.0.0"
-        yield mock_run
-
-
-@pytest.fixture
-def mock_importlib() -> Generator[mock.MagicMock, None, None]:
-    """Mock importlib.metadata."""
-    with mock.patch("importlib.metadata.distribution") as mock_dist:
-        yield mock_dist
-
-
 class TestDependencyManager:
     def test_init(self, settings: dict[str, Any]) -> None:
         """Test initialization."""
