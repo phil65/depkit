@@ -72,15 +72,25 @@ class DependencyManager:
             f"pip_index_url={self.pip_index_url})"
         )
 
-    async def __aenter__(self) -> Self:
+    def __enter__(self) -> Self:
         """Set up dependencies on context entry."""
+        import asyncio
+
+        asyncio.run(self.setup())
+        return self
+
+    def __exit__(self, *exc: object) -> None:
+        """Clean up on context exit."""
+        self.cleanup()
+
+    async def __aenter__(self) -> Self:
+        """Set up dependencies on async context entry."""
         await self.setup()
         return self
 
     async def __aexit__(self, *exc: object) -> None:
-        """Clean up on context exit."""
+        """Clean up on async context exit."""
         self.cleanup()
-        # Currently no cleanup needed, but good for future
 
     def _setup_script_modules(self) -> None:
         """Set up importable modules from scripts."""

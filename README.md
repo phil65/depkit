@@ -50,15 +50,28 @@ pip install depkit
 
 ## Basic Usage
 
+The DependencyManager supports both synchronous and asynchronous context managers:
+
+### Async Usage
 ```python
 from depkit import DependencyManager
 
-# Simple dependency management
 async with DependencyManager(
     requirements=["requests>=2.31.0", "pandas"],
-    prefer_uv=True  # Use uv if available
+    prefer_uv=True
 ) as manager:
-    # Dependencies are installed and ready to use
+    import requests
+    import pandas
+```
+
+### Sync Usage
+```python
+from depkit import DependencyManager
+
+with DependencyManager(
+    requirements=["requests>=2.31.0", "pandas"],
+    prefer_uv=True
+) as manager:
     import requests
     import pandas
 ```
