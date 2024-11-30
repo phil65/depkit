@@ -12,6 +12,12 @@ import pytest
 from depkit.depmanager import DependencyError, DependencyManager
 
 
+SCRIPT_SINGLE_DEP = """\
+# /// script
+# dependencies = ["requests>=2.31.0"]
+# ///
+"""
+
 if TYPE_CHECKING:
     from collections.abc import Generator
     from pathlib import Path
@@ -132,6 +138,48 @@ class TestDependencyManager:
             assert manager._installed
             mock_subprocess.assert_called_once()
 
+    @pytest.mark.asyncio
+    async def test_setup_with_nonexistent_script(self) -> None:
+        """Test setup with nonexistent script."""
+        async with DependencyManager(scripts=["/nonexistent/script.py"]) as manager:
+            # Should handle missing script gracefully
+            assert not manager.requirements
+
+    @pytest.mark.asyncio
+    async def test_setup_with_invalid_script(self, tmp_path: Path) -> None:
+        """Test setup with invalid Python script."""
+        script = tmp_path / "invalid.py"
+        script.write_text("This is not valid Python!", encoding="utf-8")
+        async with DependencyManager(scripts=[str(script)]) as manager:
+            # Should handle invalid script gracefully
+            assert not manager.requirements
+
+    @pytest.mark.asyncio
+    async def test_cleanup(self, tmp_path: Path) -> None:
+        """Test cleanup of temporary files."""
+        script = tmp_path / "test.py"
+        script.write_text("print('test')", encoding="utf-8")
+
+        manager = DependencyManager(scripts=[str(script)])
+        scripts_dir = manager._scripts_dir
+
+        assert scripts_dir.exists()
+        manager.cleanup()
+        assert not scripts_dir.exists()
+
+    @pytest.mark.asyncio
+    async def test_setup_with_scripts(self, tmp_path: Path) -> None:
+        """Test setup with script loading."""
+        script = tmp_path / "test.py"
+        script.write_text(SCRIPT_SINGLE_DEP)
+
+        async with DependencyManager(
+            scripts=[str(script)],
+            requirements=["pandas"],
+        ) as manager:
+            assert "requests>=2.31.0" in manager.requirements
+            assert "pandas" in manager.requirements
+
     def test_integration(self, tmp_path: Path) -> None:
         """Integration test with real filesystem."""
         test_dir = tmp_path / "test_dir"
@@ -144,7 +192,6 @@ class TestDependencyManager:
         manager.update_python_path()
         assert str(test_dir) in sys.path
 
-    # platform
     @pytest.mark.parametrize(
         ("platform", "uv_cmd"),
         [
@@ -187,7 +234,6 @@ class TestDependencyManager:
 
         with (
             mock.patch("sys.platform", platform),
-            # Mock UV detection to ensure we get pip fallback
             mock.patch.object(manager, "_detect_uv_environment", return_value=False),
             mock.patch("shutil.which", return_value=None),  # No UV in PATH
         ):
@@ -196,7 +242,6 @@ class TestDependencyManager:
 
     def test_update_python_path_windows(self, tmp_path: Path) -> None:
         """Test Python path updating on Windows."""
-        # Create a real test directory
         test_dir = tmp_path / "test_dir"
         test_dir.mkdir()
         original_path = sys.path.copy()
@@ -204,34 +249,7 @@ class TestDependencyManager:
             manager = DependencyManager(extra_paths=[str(test_dir)])
             manager.update_python_path()
 
-            # The path should be added and normalized
             assert str(test_dir) in sys.path
-            # Check it was added exactly once
             assert sys.path.count(str(test_dir)) == 1
         finally:
-            # Restore original sys.path
             sys.path[:] = original_path
-
-
-# def test_uv_detection(self) -> None:
-#     """Test UV environment detection."""
-#     settings = GlobalSettings()
-#     manager = DependencyManager(settings)
-
-#     # Test UV_VIRTUAL_ENV detection
-#     with mock.patch.dict(os.environ, {"UV_VIRTUAL_ENV": "/some/path"}):
-#         assert manager._detect_uv_environment()
-
-#     # Test UV in PATH detection
-#     with (
-#         mock.patch.dict(os.environ, {}, clear=True),
-#         mock.patch("shutil.which", return_value="/path/to/uv"),
-#     ):
-#         assert manager._detect_uv_environment()
-
-#     # Test no UV
-#     with (
-#         mock.patch.dict(os.environ, {}, clear=True),
-#         mock.patch("shutil.which", return_value=None),
-#     ):
-#         assert not manager._detect_uv_environment()
