@@ -75,7 +75,7 @@ class DependencyManager:
             )
             raise RuntimeError(msg)
 
-        asyncio.run(self.setup())
+        self.setup()
         return self
 
     def __exit__(
@@ -89,7 +89,7 @@ class DependencyManager:
 
     async def __aenter__(self) -> Self:
         """Set up dependencies on async context entry."""
-        await self.setup()
+        await self._async_setup()
         return self
 
     async def __aexit__(
@@ -110,9 +110,7 @@ class DependencyManager:
         Raises:
             DependencyError: If setup fails
         """
-        import asyncio
-
-        asyncio.run(self.setup())
+        self.setup()
 
     def uninstall(self) -> None:
         """Clean up installed dependencies and temporary files."""
@@ -202,7 +200,7 @@ class DependencyManager:
         """Get current Python path entries."""
         return sys.path.copy()
 
-    async def setup(self) -> None:
+    def setup(self) -> None:  # Remove async
         """Complete setup of dependencies."""
         try:
             # First set up script modules to collect their dependencies
@@ -244,6 +242,10 @@ class DependencyManager:
                 raise
             msg = f"Dependency setup failed: {exc}"
             raise DependencyError(msg) from exc
+
+    async def _async_setup(self) -> None:
+        """Async wrapper for setup."""
+        self.setup()
 
     def cleanup(self) -> None:
         """Clean up temporary files."""
