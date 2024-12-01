@@ -119,9 +119,6 @@ class DependencyManager:
 
     def _setup_script_modules(self) -> None:
         """Set up importable modules from scripts."""
-        if not self.scripts:
-            return
-
         for script_path in self.scripts:
             logger.debug("Processing script: %s", script_path)
             try:
@@ -211,18 +208,15 @@ class DependencyManager:
 
             # Add PEP 723 requirements from extra paths
             for path in self.extra_paths:
-                if Path(path).is_dir():
-                    new_deps = scan_directory_deps(path)
-                    if new_deps:
-                        logger.debug("Found dependencies in %s: %s", path, new_deps)
+                if Path(path).is_dir() and (new_deps := scan_directory_deps(path)):
+                    logger.debug("Found dependencies in %s: %s", path, new_deps)
                     requirements.update(new_deps)
 
             # Update requirements with all found dependencies
             self.requirements = sorted(requirements)
 
             # Install missing requirements
-            missing = check_requirements(self.requirements)
-            if missing:
+            if missing := check_requirements(self.requirements):
                 logger.info("Installing missing requirements: %s", missing)
                 pip_cmd = get_pip_command(prefer_uv=self.prefer_uv, is_uv=self._is_uv)
                 reqs = install_requirements(
