@@ -114,10 +114,13 @@ class DependencyManager:
                 validate_script(content, script_path)
                 # Check Python version first
                 if metadata.python_version:
+                    logger.debug("Found Python constraint: %s", metadata.python_version)
                     check_python_version(metadata.python_version, script_path)
 
                 # Add dependencies
-                self.requirements.extend(metadata.dependencies)
+                if metadata.dependencies:
+                    logger.debug("Found dependencies: %s", metadata.dependencies)
+                    self.requirements.extend(metadata.dependencies)
 
                 # Extract base module name from filename
                 base_name = Path(script_path).stem
