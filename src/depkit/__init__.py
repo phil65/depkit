@@ -1,4 +1,4 @@
-__version__ = "0.3.5"
+__version__ = "0.3.6"
 
 from depkit.depmanager import DependencyManager
 from depkit.exceptions import (
