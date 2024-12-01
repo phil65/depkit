@@ -193,3 +193,28 @@ def ensure_importable(import_path: str) -> None:
             f"Currently installed packages: {', '.join(sorted(installed))}"
         )
         raise DependencyError(msg) from exc
+
+
+def in_virtualenv() -> bool:
+    """Check if we're running inside a virtual environment."""
+    return (
+        # Standard venv/virtualenv
+        hasattr(sys, "real_prefix")
+        # Python 3's venv
+        or (hasattr(sys, "base_prefix") and sys.base_prefix != sys.prefix)
+        # Conda
+        or bool(os.environ.get("CONDA_PREFIX"))
+        # UV
+        or bool(os.environ.get("UV_VIRTUAL_ENV"))
+    )
+
+
+def get_venv_info() -> dict[str, str | None]:
+    """Get information about the current virtual environment."""
+    return {
+        "is_venv": str(in_virtualenv()),
+        "venv_path": sys.prefix,
+        "base_path": getattr(sys, "base_prefix", sys.prefix),
+        "conda_prefix": os.environ.get("CONDA_PREFIX"),
+        "uv_venv": os.environ.get("UV_VIRTUAL_ENV"),
+    }

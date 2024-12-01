@@ -16,6 +16,8 @@ from depkit.utils import (
     detect_uv,
     ensure_importable,
     get_pip_command,
+    get_venv_info,
+    in_virtualenv,
     install_requirements,
     scan_directory_deps,
     verify_paths,
@@ -198,3 +200,45 @@ class TestUtils:
 
         with pytest.raises(DependencyError, match="not found"):
             ensure_importable("nonexistent.module")
+
+    def test_in_virtualenv(self) -> None:
+        """Test virtual environment detection."""
+        # Test when definitely not in a venv
+        with (
+            mock.patch("sys.prefix", "/usr"),
+            mock.patch("sys.base_prefix", "/usr"),
+            mock.patch.dict(os.environ, {}, clear=True),
+        ):
+            assert not in_virtualenv()
+
+        # Test when in a venv (using UV as example)
+        dct = {"UV_VIRTUAL_ENV": "/uv"}
+        with mock.patch.dict(os.environ, dct, clear=True):
+            assert in_virtualenv()
+
+    def test_get_venv_info(self) -> None:
+        """Test getting virtual environment information."""
+        env_vars = {"VIRTUAL_ENV": "/venv", "UV_VIRTUAL_ENV": "/uv"}
+
+        with mock.patch.dict(os.environ, env_vars, clear=True):
+            info = get_venv_info()
+            assert isinstance(info, dict)
+            assert "is_venv" in info
+            assert info["venv_path"] == sys.prefix
+
+    def test_get_environment_info(self) -> None:
+        """Test environment info includes all required fields."""
+        from depkit.depmanager import DependencyManager
+
+        dm = DependencyManager(force_install=True)
+        info = dm.get_environment_info()
+
+        required_fields = {
+            "is_venv",
+            "venv_path",
+            "base_path",
+            "python_version",
+            "python_path",
+            "is_uv",
+        }
+        assert all(field in info for field in required_fields)

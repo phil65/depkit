@@ -13,6 +13,8 @@ from depkit.utils import (
     check_requirements,
     detect_uv,
     get_pip_command,
+    get_venv_info,
+    in_virtualenv,
     install_requirements,
     scan_directory_deps,
     validate_script,
@@ -38,21 +40,32 @@ class DependencyManager:
 
     def __init__(
         self,
-        prefer_uv: bool = False,
         requirements: list[str] | None = None,
+        *,
+        prefer_uv: bool = False,
         extra_paths: list[str] | None = None,
         scripts: list[str] | None = None,
         pip_index_url: str | None = None,
+        force_install: bool = False,
     ) -> None:
         self.prefer_uv = prefer_uv
         self.requirements = requirements or []
         self.extra_paths = extra_paths or []
         self.pip_index_url = pip_index_url
+        self.force_install = force_install
         self._installed: set[str] = set()
         self._is_uv = detect_uv()
         self.scripts = scripts or []
         self._scripts_dir = Path(tempfile.mkdtemp(prefix="llmling_scripts_"))
         self._module_map: dict[str, str] = {}  # Maps module names to file paths
+
+        # Check virtual environment status early
+        if not in_virtualenv() and not self.force_install:
+            msg = (
+                "Not running in a virtual environment. Installing packages globally "
+                "is not recommended. Use force_install=True to override."
+            )
+            raise DependencyError(msg)
 
     def __repr__(self) -> str:
         return (
@@ -88,6 +101,16 @@ class DependencyManager:
     ) -> None:
         """Clean up on async context exit."""
         self.cleanup()
+
+    def get_environment_info(self) -> dict[str, str | None]:
+        """Get information about the current Python environment."""
+        return {
+            **get_venv_info(),
+            "python_version": sys.version,
+            "python_path": sys.executable,
+            "is_uv": str(self._is_uv),
+            "pip_index": self.pip_index_url,
+        }
 
     def install(self) -> None:
         """Install dependencies and set up environment.
