@@ -44,12 +44,20 @@ def verify_paths(paths: Sequence[str | PathLike[str]]) -> None:
             raise DependencyError(msg) from exc
 
 
-def validate_script(content: str, path: str) -> None:
-    """Validate Python script content."""
+def validate_script(content: str, script_path: str) -> None:
+    """Verify script content is valid Python code.
+
+    Args:
+        content: The script content
+        script_path: Path to script (for error messages)
+
+    Raises:
+        DependencyError: If script content has invalid syntax
+    """
     try:
         ast.parse(content)
     except SyntaxError as exc:
-        msg = f"Invalid Python script {path}: {exc}"
+        msg = f"Invalid Python syntax in script {script_path}: {exc}"
         raise DependencyError(msg) from exc
 
 

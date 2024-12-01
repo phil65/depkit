@@ -101,9 +101,10 @@ class TestDependencyManager:
         """Test setup with invalid Python script."""
         script = tmp_path / "invalid.py"
         script.write_text("This is not valid Python!", encoding="utf-8")
-        async with DependencyManager(scripts=[str(script)]) as manager:
-            # Should handle invalid script gracefully
-            assert not manager.requirements
+
+        with pytest.raises(DependencyError, match="Invalid Python syntax in script.*"):
+            async with DependencyManager(scripts=[str(script)]):
+                pass  # Should not reach this point
 
     @pytest.mark.asyncio
     async def test_cleanup(self, tmp_path: Path) -> None:

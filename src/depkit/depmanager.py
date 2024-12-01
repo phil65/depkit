@@ -8,13 +8,14 @@ import tempfile
 from typing import TYPE_CHECKING, Self
 
 from depkit.exceptions import DependencyError
-from depkit.parser import parse_script_metadata
+from depkit.parser import check_python_version, parse_script_metadata
 from depkit.utils import (
     check_requirements,
     detect_uv,
     get_pip_command,
     install_requirements,
     scan_directory_deps,
+    validate_script,
     verify_paths,
 )
 
@@ -122,14 +123,13 @@ class DependencyManager:
             return
 
         for script_path in self.scripts:
+            logger.debug("Processing script: %s", script_path)
             try:
                 content = Path(script_path).read_text()
                 metadata = parse_script_metadata(content)
-
+                validate_script(content, script_path)
                 # Check Python version first
                 if metadata.python_version:
-                    from depkit.parser import check_python_version
-
                     check_python_version(metadata.python_version, script_path)
 
                 # Add dependencies
@@ -212,7 +212,10 @@ class DependencyManager:
             # Add PEP 723 requirements from extra paths
             for path in self.extra_paths:
                 if Path(path).is_dir():
-                    requirements.update(scan_directory_deps(path))
+                    new_deps = scan_directory_deps(path)
+                    if new_deps:
+                        logger.debug("Found dependencies in %s: %s", path, new_deps)
+                    requirements.update(new_deps)
 
             # Update requirements with all found dependencies
             self.requirements = sorted(requirements)
@@ -220,20 +223,22 @@ class DependencyManager:
             # Install missing requirements
             missing = check_requirements(self.requirements)
             if missing:
+                logger.info("Installing missing requirements: %s", missing)
                 pip_cmd = get_pip_command(prefer_uv=self.prefer_uv, is_uv=self._is_uv)
-                self._installed.update(
-                    install_requirements(
-                        missing,
-                        pip_command=pip_cmd,
-                        pip_index_url=self.pip_index_url,
-                    )
+                reqs = install_requirements(
+                    missing,
+                    pip_command=pip_cmd,
+                    pip_index_url=self.pip_index_url,
                 )
+                self._installed.update(reqs)
+                logger.info("Successfully installed: %s", self._installed)
 
             # Update Python path
             self.update_python_path()
 
             # Verify paths exist
             if self.extra_paths:
+                logger.debug("Verifying paths: %s", self.extra_paths)
                 verify_paths(self.extra_paths)
 
         except Exception as exc:
