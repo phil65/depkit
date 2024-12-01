@@ -25,6 +25,12 @@ SCRIPT_SINGLE_DEP = """\
 # ///
 """
 
+SCRIPT_ANOTHER_DEP = """\
+# /// script
+# dependencies = ["pandas>=2.0.0"]
+# ///
+"""
+
 SCRIPT_INVALID_PYTHON = """\
 # /// script
 # requires-python = ">=9999.0"  # Future Python!
@@ -239,3 +245,24 @@ class TestDependencyManager:
             DependencyManager(scripts=[str(script)]),
         ):
             pass
+
+    def test_installed_requirements_tracking(
+        self, tmp_path: Path, mock_importlib: mock.MagicMock
+    ) -> None:
+        """Test that all requirements are tracked, even if already installed."""
+        # Create two test scripts
+        script1 = tmp_path / "script1.py"
+        script2 = tmp_path / "script2.py"
+        script1.write_text(SCRIPT_SINGLE_DEP)  # has requests>=2.31.0
+        script2.write_text(SCRIPT_ANOTHER_DEP)  # has pandas>=2.0.0
+
+        # Mock that all packages are already installed
+        mock_importlib.return_value = True
+
+        man = DependencyManager(scripts=[str(script1), str(script2)])
+        man.install()
+
+        # Should track all requirements, regardless of whether they needed installation
+        installed = man.get_installed_requirements()
+        assert "requests>=2.31.0" in installed
+        assert "pandas>=2.0.0" in installed
