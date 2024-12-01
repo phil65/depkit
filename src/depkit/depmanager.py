@@ -197,7 +197,7 @@ class DependencyManager:
         """Get current Python path entries."""
         return sys.path.copy()
 
-    def setup(self) -> None:  # Remove async
+    def setup(self):
         """Complete setup of dependencies."""
         try:
             # First set up script modules to collect their dependencies
@@ -215,16 +215,18 @@ class DependencyManager:
             # Update requirements with all found dependencies
             self.requirements = sorted(requirements)
 
+            # Track all requirements, not just newly installed ones
+            self._installed.update(self.requirements)
+
             # Install missing requirements
             if missing := check_requirements(self.requirements):
                 logger.info("Installing missing requirements: %s", missing)
                 pip_cmd = get_pip_command(prefer_uv=self.prefer_uv, is_uv=self._is_uv)
-                reqs = install_requirements(
+                install_requirements(
                     missing,
                     pip_command=pip_cmd,
                     pip_index_url=self.pip_index_url,
                 )
-                self._installed.update(reqs)
                 logger.info("Successfully installed: %s", self._installed)
 
             # Update Python path
