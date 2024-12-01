@@ -109,7 +109,7 @@ class DependencyManager:
         for script_path in self.scripts:
             logger.debug("Processing script: %s", script_path)
             try:
-                content = Path(script_path).read_text()
+                content = Path(script_path).read_text("utf-8", errors="ignore")
                 metadata = parse_script_metadata(content)
                 validate_script(content, script_path)
                 # Check Python version first
