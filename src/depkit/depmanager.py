@@ -63,19 +63,6 @@ class DependencyManager:
 
     def __enter__(self) -> Self:
         """Set up dependencies on context entry."""
-        import asyncio
-
-        if not asyncio.get_event_loop_policy()._local._loop:  # type: ignore
-            asyncio.set_event_loop(asyncio.new_event_loop())
-
-        loop = asyncio.get_event_loop()
-        if loop.is_running():
-            msg = (
-                "Synchronous context manager cannot be used in async context. "
-                "Use 'async with' instead."
-            )
-            raise RuntimeError(msg)
-
         self.setup()
         return self
 
