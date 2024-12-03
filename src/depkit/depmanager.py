@@ -69,7 +69,7 @@ class DependencyManager:
         self._installed: set[str] = set()
         self._is_uv = detect_uv()
         self.scripts = scripts or []
-        self._scripts_dir = Path(tempfile.mkdtemp(prefix="llmling_scripts_"))
+        self._scripts_dir = Path(tempfile.mkdtemp(prefix="depkit_scripts_"))
         self._module_map: dict[str, str] = {}  # Maps module names to file paths
 
         # Check virtual environment status early
