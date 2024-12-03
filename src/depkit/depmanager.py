@@ -36,7 +36,7 @@ logger = logging.getLogger(__name__)
 
 
 class DependencyManager:
-    """Manages global tool dependencies."""
+    """Manages Python package dependencies."""
 
     def __init__(
         self,
@@ -48,6 +48,19 @@ class DependencyManager:
         pip_index_url: str | None = None,
         force_install: bool = False,
     ) -> None:
+        """Initialize dependency manager.
+
+        Args:
+            requirements: List of package requirements
+            prefer_uv: Whether to prefer uv over pip for package installation
+            extra_paths: Additional Python paths to add
+            scripts: List of script files to process for dependencies
+            pip_index_url: Custom PyPI index URL
+            force_install: Allow installing without being in a virtual environment
+
+        Raises:
+            DependencyError: If not in a virtual environment and force_install=False
+        """
         self.prefer_uv = prefer_uv
         self.requirements = requirements or []
         self.extra_paths = extra_paths or []
