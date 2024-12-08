@@ -3,11 +3,12 @@
 from __future__ import annotations
 
 import logging
+import shutil
 import sys
 import tempfile
 from typing import TYPE_CHECKING, Self
 
-from depkit.exceptions import DependencyError
+from depkit.exceptions import DependencyError, ScriptError
 from depkit.parser import check_python_version, parse_script_metadata
 from depkit.utils import (
     check_requirements,
@@ -23,6 +24,7 @@ from depkit.utils import (
 
 
 if TYPE_CHECKING:
+    import os
     import types
 
 
@@ -139,6 +141,90 @@ class DependencyManager:
     def uninstall(self) -> None:
         """Clean up installed dependencies and temporary files."""
         self.cleanup()
+
+    def install_dependency(self, requirement: str) -> None:
+        """Install a single package dependency.
+
+        Args:
+            requirement: Package requirement specification (e.g., "requests>=2.28.0")
+
+        Raises:
+            DependencyError: If installation fails or not in a virtual environment
+        """
+        if not in_virtualenv() and not self.force_install:
+            msg = (
+                "Not running in a virtual environment. Installing packages globally "
+                "is not recommended. Use force_install=True to override."
+            )
+            raise DependencyError(msg)
+
+        # Check if already installed
+        if not check_requirements([requirement]):
+            logger.debug("Requirement %r is already satisfied", requirement)
+            self._installed.add(requirement)
+            return
+
+        logger.info("Installing requirement: %s", requirement)
+        pip_cmd = get_pip_command(prefer_uv=self.prefer_uv, is_uv=self._is_uv)
+
+        try:
+            install_requirements(
+                [requirement],
+                pip_command=pip_cmd,
+                pip_index_url=self.pip_index_url,
+            )
+            self._installed.add(requirement)
+            logger.info("Successfully installed: %s", requirement)
+        except Exception as exc:
+            if isinstance(exc, DependencyError):
+                raise
+            msg = f"Failed to install {requirement}: {exc}"
+            raise DependencyError(msg) from exc
+
+    def install_script(self, script_path: str | os.PathLike[str]) -> None:
+        """Install dependencies from a PEP 723 script.
+
+        Args:
+            script_path: Path to the Python script
+
+        Raises:
+            DependencyError: If script processing or installation fails
+            ScriptError: If script metadata is invalid
+        """
+        from upath import UPath
+
+        path = UPath(script_path)
+
+        try:
+            # Read and validate script
+            content = path.read_text("utf-8", errors="ignore")
+            validate_script(content, str(path))
+
+            # Parse metadata
+            metadata = parse_script_metadata(content)
+
+            # Check Python version constraint if specified
+            if metadata.python_version:
+                check_python_version(metadata.python_version, str(path))
+
+            # Install dependencies
+            if not metadata.dependencies:
+                logger.debug("No dependencies found in script: %s", path)
+                return
+            msg = "Installing %d dependencies from script %s"
+            logger.info(msg, len(metadata.dependencies), path)
+
+            for req in metadata.dependencies:
+                self.install_dependency(req)
+
+        except FileNotFoundError as exc:
+            msg = f"Script not found: {path}"
+            raise DependencyError(msg) from exc
+        except Exception as exc:
+            if isinstance(exc, DependencyError | ScriptError):
+                raise
+            msg = f"Failed to process script {path}: {exc}"
+            raise DependencyError(msg) from exc
 
     def _setup_script_modules(self) -> None:
         """Set up importable modules from scripts."""
@@ -277,6 +363,4 @@ class DependencyManager:
     def cleanup(self) -> None:
         """Clean up temporary files."""
         if self._scripts_dir and self._scripts_dir.exists():
-            import shutil
-
             shutil.rmtree(self._scripts_dir)
