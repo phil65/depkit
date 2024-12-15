@@ -190,9 +190,7 @@ class DependencyManager:
             DependencyError: If script processing or installation fails
             ScriptError: If script metadata is invalid
         """
-        from upath import UPath
-
-        path = UPath(script_path)
+        path = Path(script_path)
 
         try:
             # Read and validate script

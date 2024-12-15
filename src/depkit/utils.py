@@ -6,7 +6,6 @@ import ast
 import importlib.metadata
 import logging
 import os
-from pathlib import Path
 import shutil
 import subprocess
 import sys
@@ -15,6 +14,11 @@ from typing import TYPE_CHECKING
 from depkit.exceptions import DependencyError
 from depkit.parser import parse_pep723_deps
 
+
+try:
+    from upath import UPath as Path
+except (ImportError, ModuleNotFoundError):
+    from pathlib import Path
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -27,11 +31,9 @@ logger = logging.getLogger(__name__)
 
 def verify_paths(paths: Sequence[str | PathLike[str]]) -> None:
     """Verify that paths exist and are accessible."""
-    from upath import UPath
-
     for path in paths:
         try:
-            path_obj = UPath(path)
+            path_obj = Path(path)
             if not path_obj.exists():
                 msg = f"Path does not exist: {path}"
                 raise DependencyError(msg)  # noqa: TRY301
@@ -85,10 +87,8 @@ def get_pip_command(*, prefer_uv: bool = False, is_uv: bool = False) -> Command:
 
 def collect_file_dependencies(path: str | PathLike[str]) -> set[str]:
     """Collect dependencies from a Python file."""
-    from upath import UPath
-
     try:
-        content = UPath(path).read_text(encoding="utf-8", errors="ignore")
+        content = Path(path).read_text(encoding="utf-8", errors="ignore")
         return set(parse_pep723_deps(content))
     except Exception as exc:  # noqa: BLE001
         logger.debug("Failed to parse dependencies from %s: %s", path, exc)
@@ -97,10 +97,8 @@ def collect_file_dependencies(path: str | PathLike[str]) -> set[str]:
 
 def scan_directory_deps(directory: str | PathLike[str]) -> set[str]:
     """Recursively scan directory for PEP 723 dependencies."""
-    from upath import UPath
-
     all_deps: set[str] = set()
-    dir_path = UPath(directory)
+    dir_path = Path(directory)
 
     # Don't scan site-packages or other system directories
     if "site-packages" in str(dir_path):
