@@ -60,10 +60,8 @@ def parse_script_metadata(content: str) -> ScriptMetadata:
 
     def extract_toml(match: re.Match[str]) -> str:
         """Extract TOML content from comment block."""
-        return "".join(
-            line[2:] if line.startswith("# ") else line[1:]
-            for line in match.group("content").splitlines(keepends=True)
-        )
+        lines = match.group("content").splitlines(keepends=True)
+        return "".join(line[2:] if line.startswith("# ") else line[1:] for line in lines)
 
     # Find script metadata blocks
     matches = list(
@@ -95,10 +93,7 @@ def parse_script_metadata(content: str) -> ScriptMetadata:
             msg = "requires-python must be a string"
             raise ScriptError(msg)  # noqa: TRY301
 
-        return ScriptMetadata(
-            dependencies=deps,
-            python_version=python_req,
-        )
+        return ScriptMetadata(dependencies=deps, python_version=python_req)
 
     except tomllib.TOMLDecodeError as exc:
         msg = f"Invalid TOML in script metadata: {exc}"
