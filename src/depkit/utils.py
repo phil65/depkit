@@ -6,6 +6,7 @@ import ast
 import importlib.metadata
 import logging
 import os
+from pathlib import Path
 import shutil
 import subprocess
 import sys
@@ -196,7 +197,24 @@ def ensure_importable(import_path: str) -> None:
 
 
 def in_virtualenv() -> bool:
-    """Check if we're running inside a virtual environment."""
+    """Check if we're running inside a virtual environment or Jupyter kernel.
+
+    Returns:
+        True if running in a venv, conda env, or Jupyter kernel
+    """
+    # Check if we're in a Jupyter environment
+    parts = Path(sys.argv[0]).parts
+    in_jupyter = (
+        # IPython/Jupyter runtime
+        hasattr(sys, "ps1")
+        # Notebook or QtConsole
+        or any(name.startswith(("jupyter-", "ipython")) for name in parts)
+        # IPython shell or Jupyter kernel
+        or "IPython" in sys.modules
+        # Explicit Jupyter environment variable
+        or os.environ.get("JUPYTER_RUNTIME_DIR") is not None
+    )
+
     return (
         # Standard venv/virtualenv
         hasattr(sys, "real_prefix")
@@ -206,6 +224,8 @@ def in_virtualenv() -> bool:
         or bool(os.environ.get("CONDA_PREFIX"))
         # UV
         or bool(os.environ.get("UV_VIRTUAL_ENV"))
+        # Jupyter environments
+        or in_jupyter
     )
 
 
