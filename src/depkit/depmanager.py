@@ -74,7 +74,12 @@ class DependencyManager:
         self._scripts_dir = Path(tempfile.mkdtemp(prefix="depkit_scripts_"))
         self._module_map: dict[str, str] = {}  # Maps module names to file paths
 
-        # Check virtual environment status early
+    def _check_venv(self) -> None:
+        """Check if we're in a virtual environment.
+
+        Raises:
+            DependencyError: If not in a virtual environment and force_install=False
+        """
         if not in_virtualenv() and not self.force_install:
             msg = (
                 "Not running in a virtual environment. Installing packages globally "
@@ -151,13 +156,7 @@ class DependencyManager:
         Raises:
             DependencyError: If installation fails or not in a virtual environment
         """
-        if not in_virtualenv() and not self.force_install:
-            msg = (
-                "Not running in a virtual environment. Installing packages globally "
-                "is not recommended. Use force_install=True to override."
-            )
-            raise DependencyError(msg)
-
+        self._check_venv()
         # Check if already installed
         if not check_requirements([requirement]):
             logger.debug("Requirement %r is already satisfied", requirement)
@@ -327,11 +326,12 @@ class DependencyManager:
             # Update requirements with all found dependencies
             self.requirements = sorted(requirements)
 
-            # Track all requirements, not just newly installed ones
-            self._installed.update(self.requirements)
+            # Find which requirements need installation
+            missing = check_requirements(self.requirements)
 
-            # Install missing requirements
-            if missing := check_requirements(self.requirements):
+            # Check venv status only if we have missing requirements to install
+            if missing:
+                self._check_venv()
                 logger.info("Installing missing requirements: %s", missing)
                 pip_cmd = get_pip_command(prefer_uv=self.prefer_uv, is_uv=self._is_uv)
                 install_requirements(
@@ -339,7 +339,10 @@ class DependencyManager:
                     pip_command=pip_cmd,
                     pip_index_url=self.pip_index_url,
                 )
-                logger.info("Successfully installed: %s", self._installed)
+                logger.info("Successfully installed: %s", missing)
+
+            # Track all requirements that were handled
+            self._installed.update(self.requirements)
 
             # Update Python path
             self.update_python_path()
