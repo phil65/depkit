@@ -195,25 +195,13 @@ def ensure_importable(import_path: str) -> None:
 
 
 def in_virtualenv() -> bool:
-    """Check if we're running inside a virtual environment or Jupyter kernel.
+    """Check if we're running inside a virtual environment or safe Jupyter kernel.
 
     Returns:
-        True if running in a venv, conda env, or Jupyter kernel
+        True if running in a venv, conda env, or Jupyter kernel within a venv
     """
-    # Check if we're in a Jupyter environment
-    parts = Path(sys.argv[0]).parts
-    in_jupyter = (
-        # IPython/Jupyter runtime
-        hasattr(sys, "ps1")
-        # Notebook or QtConsole
-        or any(name.startswith(("jupyter-", "ipython")) for name in parts)
-        # IPython shell or Jupyter kernel
-        or "IPython" in sys.modules
-        # Explicit Jupyter environment variable
-        or os.environ.get("JUPYTER_RUNTIME_DIR") is not None
-    )
-
-    return (
+    # Basic virtualenv checks
+    is_venv = (
         # Standard venv/virtualenv
         hasattr(sys, "real_prefix")
         # Python 3's venv
@@ -222,9 +210,29 @@ def in_virtualenv() -> bool:
         or bool(os.environ.get("CONDA_PREFIX"))
         # UV
         or bool(os.environ.get("UV_VIRTUAL_ENV"))
-        # Jupyter environments
-        or in_jupyter
     )
+
+    # If we're already in a venv, no need to check Jupyter
+    if is_venv:
+        return True
+
+    # Only allow Jupyter if it's running in a virtual environment
+    parts = Path(sys.argv[0]).parts
+    in_jupyter = (
+        hasattr(sys, "ps1")
+        or "IPython" in sys.modules
+        or os.environ.get("JUPYTER_RUNTIME_DIR") is not None
+        or any(name.startswith(("jupyter-", "ipython")) for name in parts)
+    )
+
+    if in_jupyter:
+        # Check if Jupyter is running in a venv
+        jupyter_python = sys.executable
+        jupyter_prefix = Path(jupyter_python).parent.parent
+        system_prefix = Path(getattr(sys, "base_prefix", sys.prefix))
+        return jupyter_prefix != system_prefix
+
+    return False
 
 
 def get_venv_info() -> dict[str, str | None]:
