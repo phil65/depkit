@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from functools import lru_cache
+from itertools import batched
 import logging
 import os
 from typing import TYPE_CHECKING, Literal, overload
@@ -115,22 +116,10 @@ async def read_folder(
     max_depth: int | None = None,
     mode: Literal["rt", "rb"] = "rt",
     encoding: str = "utf-8",
+    load_parallel: bool = False,
+    chunk_size: int = 50,  # Maximum number of concurrent file reads
 ) -> Mapping[str, str | bytes]:
-    """Asynchronously read all files in a folder.
-
-    Args:
-        path: Base path to read from
-        pattern: Glob pattern to filter files
-        recursive: Whether to traverse subdirectories
-        include_dirs: Whether to include directory paths
-        exclude: Patterns to exclude
-        max_depth: Optional depth limit
-        mode: Read mode ("rt" for text, "rb" for binary)
-        encoding: File encoding for text files
-
-    Returns:
-        Dict mapping relative paths to their contents
-    """
+    """Asynchronously read all files in a folder."""
     from fnmatch import fnmatch
 
     from upath import UPath
@@ -149,7 +138,9 @@ async def read_folder(
     else:
         paths = await fs.ls(str(base_path))
 
-    # Filter paths
+    # Collect files to read
+    files_to_read: list[tuple[str, str]] = []  # [(rel_path, abs_path), ...]
+
     for file_path in paths:
         rel_path = os.path.relpath(file_path, str(base_path))
 
@@ -166,13 +157,34 @@ async def read_folder(
         if not fnmatch(rel_path, pattern):
             continue
 
-        try:
-            if not is_dir:
+        if not is_dir:
+            files_to_read.append((rel_path, file_path))
+
+    if load_parallel:
+        # Process files in chunks to avoid too many concurrent operations
+        for chunk in batched(files_to_read, chunk_size):
+            # Create tasks for this chunk
+            tasks = [
+                read_path(abs_path, mode=mode, encoding=encoding)
+                for rel_path, abs_path in chunk
+            ]
+
+            # Execute chunk in parallel
+            try:
+                contents = await asyncio.gather(*tasks)
+                # Map results back to relative paths
+                for (rel_path, _), content in zip(chunk, contents, strict=True):
+                    result[rel_path] = content  # type: ignore
+            except Exception as e:  # noqa: BLE001
+                logger.warning("Failed to read chunk starting at %s: %s", chunk[0][0], e)
+    else:
+        # Original sequential reading
+        for rel_path, file_path in files_to_read:
+            try:
                 content = await read_path(file_path, mode=mode, encoding=encoding)
                 result[rel_path] = content
-        except Exception as e:  # noqa: BLE001
-            logger.warning("Failed to read %s: %s", rel_path, e)
-            continue
+            except Exception as e:  # noqa: BLE001
+                logger.warning("Failed to read %s: %s", rel_path, e)
 
     return result
 
