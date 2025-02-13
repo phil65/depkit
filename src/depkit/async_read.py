@@ -89,6 +89,8 @@ async def read_folder(
     max_depth: int | None = None,
     mode: Literal["rt"] = "rt",
     encoding: str = "utf-8",
+    load_parallel: bool = True,
+    chunk_size: int = 50,
 ) -> Mapping[str, str]: ...
 
 
@@ -103,6 +105,8 @@ async def read_folder(
     max_depth: int | None = None,
     mode: Literal["rb"],
     encoding: str = "utf-8",
+    load_parallel: bool = True,
+    chunk_size: int = 50,
 ) -> Mapping[str, bytes]: ...
 
 
@@ -116,10 +120,29 @@ async def read_folder(
     max_depth: int | None = None,
     mode: Literal["rt", "rb"] = "rt",
     encoding: str = "utf-8",
-    load_parallel: bool = False,
-    chunk_size: int = 50,  # Maximum number of concurrent file reads
+    load_parallel: bool = True,
+    chunk_size: int = 50,
 ) -> Mapping[str, str | bytes]:
-    """Asynchronously read all files in a folder."""
+    """Asynchronously read files in a folder matching a pattern.
+
+    Args:
+        path: Base directory to read from
+        pattern: Glob pattern to match files against (e.g. "**/*.py" for Python files)
+        recursive: Whether to search subdirectories
+        include_dirs: Whether to include directories in results
+        exclude: List of patterns to exclude (uses fnmatch against relative paths)
+        max_depth: Maximum directory depth for recursive search
+        mode: Read mode ("rt" for text, "rb" for binary)
+        encoding: File encoding for text mode
+        load_parallel: Whether to load files concurrently
+        chunk_size: Number of files to load in parallel when load_parallel=True
+
+    Returns:
+        Mapping of relative paths to file contents
+
+    Raises:
+        FileNotFoundError: If base path doesn't exist
+    """
     from fnmatch import fnmatch
 
     from upath import UPath
@@ -134,15 +157,15 @@ async def read_folder(
 
     # Get all matching paths
     if recursive:
-        paths = await fs._find(str(base_path), maxdepth=max_depth)
+        paths = await fs._glob(str(base_path / pattern), maxdepth=max_depth)
     else:
-        paths = await fs.ls(str(base_path))
+        paths = await fs._glob(str(base_path / pattern))
 
     # Collect files to read
     files_to_read: list[tuple[str, str]] = []  # [(rel_path, abs_path), ...]
 
     for file_path in paths:
-        rel_path = os.path.relpath(file_path, str(base_path))
+        rel_path = os.path.relpath(file_path, str(base_path))  # type: ignore
 
         # Skip excluded patterns
         if exclude and any(fnmatch(rel_path, pat) for pat in exclude):
@@ -153,12 +176,8 @@ async def read_folder(
         if is_dir and not include_dirs:
             continue
 
-        # Filter by pattern
-        if not fnmatch(rel_path, pattern):
-            continue
-
         if not is_dir:
-            files_to_read.append((rel_path, file_path))
+            files_to_read.append((rel_path, file_path))  # type: ignore
 
     if load_parallel:
         # Process files in chunks to avoid too many concurrent operations
@@ -197,10 +216,11 @@ if __name__ == "__main__":
         # Test with current directory
         files = await read_folder(
             ".",
-            pattern="*.py",
+            pattern="**/*.py",
             recursive=True,
             exclude=["__pycache__/*", "*.pyc"],
-            max_depth=2,
+            max_depth=5,
+            load_parallel=True,
         )
         print("\nFound files:")
         pprint(list(files.keys()))
