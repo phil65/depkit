@@ -18,6 +18,7 @@ from depkit.utils import (
     in_virtualenv,
     install_requirements,
     scan_directory_deps,
+    scan_directory_deps_async,
     validate_script,
     verify_paths,
 )
@@ -110,7 +111,7 @@ class DependencyManager:
 
     async def __aenter__(self) -> Self:
         """Set up dependencies on async context entry."""
-        await self._async_setup()
+        await self.async_setup()
         return self
 
     async def __aexit__(
@@ -306,7 +307,38 @@ class DependencyManager:
         """Get current Python path entries."""
         return sys.path.copy()
 
-    def setup(self):
+    def _setup_requirements(self, requirements: set[str]) -> None:
+        """Handle requirements installation and environment setup."""
+        # Update requirements with all found dependencies
+        self.requirements = sorted(requirements)
+
+        # Find which requirements need installation
+        missing = check_requirements(self.requirements)
+
+        # Check venv status only if we have missing requirements to install
+        if missing:
+            self._check_venv()
+            logger.info("Installing missing requirements: %s", missing)
+            pip_cmd = get_pip_command(prefer_uv=self.prefer_uv, is_uv=self._is_uv)
+            install_requirements(
+                missing,
+                pip_command=pip_cmd,
+                pip_index_url=self.pip_index_url,
+            )
+            logger.info("Successfully installed: %s", missing)
+
+        # Track all requirements that were handled
+        self._installed.update(self.requirements)
+
+        # Update Python path
+        self.update_python_path()
+
+        # Verify paths exist
+        if self.extra_paths:
+            logger.debug("Verifying paths: %s", self.extra_paths)
+            verify_paths(self.extra_paths)
+
+    def setup(self) -> None:
         """Complete setup of dependencies."""
         try:
             # First set up script modules to collect their dependencies
@@ -321,34 +353,7 @@ class DependencyManager:
                     logger.debug("Found dependencies in %s: %s", path, new_deps)
                     requirements.update(new_deps)
 
-            # Update requirements with all found dependencies
-            self.requirements = sorted(requirements)
-
-            # Find which requirements need installation
-            missing = check_requirements(self.requirements)
-
-            # Check venv status only if we have missing requirements to install
-            if missing:
-                self._check_venv()
-                logger.info("Installing missing requirements: %s", missing)
-                pip_cmd = get_pip_command(prefer_uv=self.prefer_uv, is_uv=self._is_uv)
-                install_requirements(
-                    missing,
-                    pip_command=pip_cmd,
-                    pip_index_url=self.pip_index_url,
-                )
-                logger.info("Successfully installed: %s", missing)
-
-            # Track all requirements that were handled
-            self._installed.update(self.requirements)
-
-            # Update Python path
-            self.update_python_path()
-
-            # Verify paths exist
-            if self.extra_paths:
-                logger.debug("Verifying paths: %s", self.extra_paths)
-                verify_paths(self.extra_paths)
+            self._setup_requirements(requirements)
 
         except Exception as exc:
             self.cleanup()  # Ensure cleanup on error
@@ -357,9 +362,31 @@ class DependencyManager:
             msg = f"Dependency setup failed: {exc}"
             raise DependencyError(msg) from exc
 
-    async def _async_setup(self) -> None:
-        """Async wrapper for setup."""
-        self.setup()
+    async def async_setup(self) -> None:
+        """Complete async setup of dependencies."""
+        try:
+            # First set up script modules to collect their dependencies
+            self._setup_script_modules()
+
+            # Collect all dependencies (explicit + PEP 723)
+            requirements = set(self.requirements)
+
+            # Add PEP 723 requirements from extra paths
+            for path in self.extra_paths:
+                if Path(path).is_dir() and (
+                    new_deps := await scan_directory_deps_async(path)
+                ):
+                    logger.debug("Found dependencies in %s: %s", path, new_deps)
+                    requirements.update(new_deps)
+
+            self._setup_requirements(requirements)
+
+        except Exception as exc:
+            self.cleanup()  # Ensure cleanup on error
+            if isinstance(exc, DependencyError):
+                raise
+            msg = f"Dependency setup failed: {exc}"
+            raise DependencyError(msg) from exc
 
     def cleanup(self) -> None:
         """Clean up temporary files."""

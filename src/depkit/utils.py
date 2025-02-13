@@ -85,6 +85,46 @@ def get_pip_command(*, prefer_uv: bool = False, is_uv: bool = False) -> Command:
     return [sys.executable, "-m", "pip"]
 
 
+async def collect_file_dependencies_async(path: str | PathLike[str]) -> set[str]:
+    """Collect dependencies from a Python file asynchronously."""
+    try:
+        from depkit.async_read import read_path
+
+        content = await read_path(path, encoding="utf-8")
+        return set(parse_pep723_deps(content))
+    except Exception as exc:  # noqa: BLE001
+        logger.debug("Failed to parse dependencies from %s: %s", path, exc)
+        return set()
+
+
+async def scan_directory_deps_async(directory: str | PathLike[str]) -> set[str]:
+    """Recursively scan directory for PEP 723 dependencies asynchronously."""
+    all_deps: set[str] = set()
+    dir_path = Path(directory)
+
+    # Don't scan site-packages or other system directories
+    if "site-packages" in str(dir_path):
+        return all_deps
+
+    try:
+        from depkit.async_read import read_folder
+
+        files = await read_folder(
+            directory,
+            pattern="*.py",
+            recursive=True,
+            exclude=["__pycache__/*", "*.pyc"],
+        )
+
+        for content in files.values():
+            all_deps.update(parse_pep723_deps(content))
+
+    except Exception as exc:  # noqa: BLE001
+        logger.debug("Failed to scan %s for dependencies: %s", directory, exc)
+
+    return all_deps
+
+
 def collect_file_dependencies(path: str | PathLike[str]) -> set[str]:
     """Collect dependencies from a Python file."""
     try:
