@@ -108,7 +108,7 @@ class TestDependencyManager:
         script = tmp_path / "invalid.py"
         script.write_text("This is not valid Python!", encoding="utf-8")
 
-        with pytest.raises(DependencyError, match="Invalid Python syntax in script.*"):
+        with pytest.raises(DependencyError, match=r"Invalid Python syntax in script.*"):
             async with DependencyManager(scripts=[str(script)]):
                 pass  # Should not reach this point
 
@@ -227,7 +227,7 @@ class TestDependencyManager:
 
         with pytest.raises(
             DependencyError,
-            match="Duplicate module name 'module' from.*Already used by.*",
+            match=r"Duplicate module name 'module' from.*Already used by.*",
         ):
             async with DependencyManager(scripts=[str(script1), str(script2)]):
                 pass
@@ -240,7 +240,7 @@ class TestDependencyManager:
         with (
             pytest.raises(
                 DependencyError,
-                match="requires Python >=9999.0, but current version is.*",
+                match=r"requires Python >=9999.0, but current version is.*",
             ),
             DependencyManager(scripts=[str(script)]),
         ):
