@@ -2,8 +2,6 @@
 
 [![PyPI License](https://img.shields.io/pypi/l/depkit.svg)](https://pypi.org/project/depkit/)
 [![Package status](https://img.shields.io/pypi/status/depkit.svg)](https://pypi.org/project/depkit/)
-[![Daily downloads](https://img.shields.io/pypi/dd/depkit.svg)](https://pypi.org/project/depkit/)
-[![Weekly downloads](https://img.shields.io/pypi/dw/depkit.svg)](https://pypi.org/project/depkit/)
 [![Monthly downloads](https://img.shields.io/pypi/dm/depkit.svg)](https://pypi.org/project/depkit/)
 [![Distribution format](https://img.shields.io/pypi/format/depkit.svg)](https://pypi.org/project/depkit/)
 [![Wheel availability](https://img.shields.io/pypi/wheel/depkit.svg)](https://pypi.org/project/depkit/)
@@ -21,11 +19,8 @@
 [![Github last commit](https://img.shields.io/github/last-commit/phil65/depkit)](https://github.com/phil65/depkit/commits)
 [![Github release date](https://img.shields.io/github/release-date/phil65/depkit)](https://github.com/phil65/depkit/releases)
 [![Github language count](https://img.shields.io/github/languages/count/phil65/depkit)](https://github.com/phil65/depkit)
-[![Github commits this week](https://img.shields.io/github/commit-activity/w/phil65/depkit)](https://github.com/phil65/depkit)
 [![Github commits this month](https://img.shields.io/github/commit-activity/m/phil65/depkit)](https://github.com/phil65/depkit)
-[![Github commits this year](https://img.shields.io/github/commit-activity/y/phil65/depkit)](https://github.com/phil65/depkit)
 [![Package status](https://codecov.io/gh/phil65/depkit/branch/main/graph/badge.svg)](https://codecov.io/gh/phil65/depkit/)
-[![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
 [![PyUp](https://pyup.io/repos/github/phil65/depkit/shield.svg)](https://pyup.io/repos/github/phil65/depkit/)
 
 # DependencyManager
