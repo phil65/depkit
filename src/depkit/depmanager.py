@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import logging
-import shutil
 import sys
 import tempfile
 from typing import TYPE_CHECKING, Self
@@ -29,10 +28,7 @@ if TYPE_CHECKING:
     import types
 
 
-try:
-    from upath import UPath as Path
-except (ImportError, ModuleNotFoundError):
-    from pathlib import Path
+from upath import UPath as Path
 
 
 logger = logging.getLogger(__name__)
@@ -391,4 +387,4 @@ class DependencyManager:
     def cleanup(self) -> None:
         """Clean up temporary files."""
         if self._scripts_dir and self._scripts_dir.exists():
-            shutil.rmtree(self._scripts_dir)
+            self._scripts_dir.rmdir(True)

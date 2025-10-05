@@ -11,18 +11,17 @@ import subprocess
 import sys
 from typing import TYPE_CHECKING
 
+from upath import UPath as Path
+
 from depkit.exceptions import DependencyError
 from depkit.parser import parse_pep723_deps
 
 
-try:
-    from upath import UPath as Path
-except (ImportError, ModuleNotFoundError):
-    from pathlib import Path
-
 if TYPE_CHECKING:
     from collections.abc import Sequence
     from os import PathLike
+
+    import upath
 
     type Command = list[str]
 
@@ -88,7 +87,7 @@ def get_pip_command(*, prefer_uv: bool = False, is_uv: bool = False) -> Command:
 async def collect_file_dependencies_async(path: str | PathLike[str]) -> set[str]:
     """Collect dependencies from a Python file asynchronously."""
     try:
-        from depkit.async_read import read_path
+        from upathtools import read_path
 
         content = await read_path(path, encoding="utf-8")
         return set(parse_pep723_deps(content))
@@ -107,7 +106,7 @@ async def scan_directory_deps_async(directory: str | PathLike[str]) -> set[str]:
         return all_deps
 
     try:
-        from depkit.async_read import read_folder
+        from upathtools import read_folder
 
         files = await read_folder(
             directory,
@@ -125,10 +124,12 @@ async def scan_directory_deps_async(directory: str | PathLike[str]) -> set[str]:
     return all_deps
 
 
-def collect_file_dependencies(path: str | PathLike[str]) -> set[str]:
+def collect_file_dependencies(path: str | PathLike[str] | upath.UPath) -> set[str]:
     """Collect dependencies from a Python file."""
+    from upathtools import to_upath
+
     try:
-        content = Path(path).read_text(encoding="utf-8", errors="ignore")
+        content = to_upath(path).read_text(encoding="utf-8", errors="ignore")
         return set(parse_pep723_deps(content))
     except Exception as exc:  # noqa: BLE001
         logger.debug("Failed to parse dependencies from %s: %s", path, exc)
