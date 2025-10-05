@@ -76,7 +76,6 @@ class TestDependencyManager:
             # Cleanup
             sys.path[:] = original_path
 
-    @pytest.mark.asyncio
     async def test_setup(
         self,
         settings: dict[str, Any],
@@ -90,7 +89,6 @@ class TestDependencyManager:
             assert manager._installed
             mock_subprocess.assert_called_once()
 
-    @pytest.mark.asyncio
     async def test_setup_with_nonexistent_script(
         self, caplog: pytest.LogCaptureFixture
     ) -> None:
@@ -102,7 +100,6 @@ class TestDependencyManager:
         # Check that a warning was logged
         assert "Script not found: /nonexistent/script.py" in caplog.text
 
-    @pytest.mark.asyncio
     async def test_setup_with_invalid_script(self, tmp_path: Path) -> None:
         """Test setup with invalid Python script."""
         script = tmp_path / "invalid.py"
@@ -112,7 +109,6 @@ class TestDependencyManager:
             async with DependencyManager(scripts=[str(script)]):
                 pass  # Should not reach this point
 
-    @pytest.mark.asyncio
     async def test_cleanup(self, tmp_path: Path) -> None:
         """Test cleanup of temporary files."""
         script = tmp_path / "test.py"
@@ -125,7 +121,6 @@ class TestDependencyManager:
         manager.cleanup()
         assert not scripts_dir.exists()
 
-    @pytest.mark.asyncio
     async def test_setup_with_scripts(self, tmp_path: Path) -> None:
         """Test setup with script loading."""
         script = tmp_path / "test.py"
@@ -210,7 +205,6 @@ class TestDependencyManager:
         with pytest.raises(DependencyError, match="Failed to install requirements"):
             manager.install()
 
-    @pytest.mark.asyncio
     async def test_duplicate_module_names(self, tmp_path: Path) -> None:
         """Test handling of duplicate module names."""
         # Create two scripts with the same stem name in different directories
