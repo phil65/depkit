@@ -3,9 +3,12 @@
 from __future__ import annotations
 
 import logging
+import shutil
 import sys
 import tempfile
 from typing import TYPE_CHECKING, Self
+
+import upath
 
 from depkit.exceptions import DependencyError, ScriptError
 from depkit.parser import check_python_version, parse_script_metadata
@@ -387,4 +390,7 @@ class DependencyManager:
     def cleanup(self) -> None:
         """Clean up temporary files."""
         if self._scripts_dir and self._scripts_dir.exists():
-            self._scripts_dir.rmdir(True)
+            if isinstance(self._scripts_dir, upath.UPath):
+                self._scripts_dir.fs.rm(self._scripts_dir.path, recursive=True)
+            else:
+                shutil.rmtree(self._scripts_dir)
