@@ -1,4 +1,7 @@
-"""DepKit: Tools to manage (uv) environemnts programmatically."""
+"""DepKit: main package.
+
+Tools to manage (uv) environemnts programmatically.
+"""
 
 from __future__ import annotations
 
@@ -6,7 +9,7 @@ from importlib.metadata import version
 
 __version__ = version("depkit")
 __title__ = "DepKit"
-__description__ = "Tools to manage (uv) environemnts programmatically."
+
 __author__ = "Philipp Temminghoff"
 __author_email__ = "philipptemminghoff@googlemail.com"
 __copyright__ = "Copyright (c) 2024 Philipp Temminghoff"
