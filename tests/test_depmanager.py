@@ -42,7 +42,7 @@ SCRIPT_NO_DEPS = "print('test')"
 
 
 @pytest.fixture
-def temp_venv(tmp_path: Path) -> Generator[Path, None, None]:
+def temp_venv(tmp_path: Path) -> Generator[Path]:
     """Create a temporary virtual environment structure."""
     venv_path = tmp_path / "venv"
     venv_path.mkdir()

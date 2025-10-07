@@ -11,7 +11,7 @@ if TYPE_CHECKING:
 
 
 @pytest.fixture
-def mock_subprocess() -> Generator[mock.MagicMock, None, None]:
+def mock_subprocess() -> Generator[mock.MagicMock]:
     """Mock subprocess.run."""
     with mock.patch("subprocess.run") as mock_run:
         mock_run.return_value.returncode = 0
@@ -20,7 +20,7 @@ def mock_subprocess() -> Generator[mock.MagicMock, None, None]:
 
 
 @pytest.fixture
-def mock_importlib() -> Generator[mock.MagicMock, None, None]:
+def mock_importlib() -> Generator[mock.MagicMock]:
     """Mock importlib.metadata."""
     with mock.patch("importlib.metadata.distribution") as mock_dist:
         yield mock_dist
