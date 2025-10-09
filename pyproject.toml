@@ -25,6 +25,7 @@ classifiers = [
   "Typing :: Typed",
 ]
 dependencies = [
+  "packaging>=25.0",
   # Only add below (Copier)
   "upathtools>=0.6.5",
 ]
