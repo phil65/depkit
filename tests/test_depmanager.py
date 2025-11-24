@@ -89,9 +89,7 @@ class TestDependencyManager:
             assert manager._installed
             mock_subprocess.assert_called_once()
 
-    async def test_setup_with_nonexistent_script(
-        self, caplog: pytest.LogCaptureFixture
-    ) -> None:
+    async def test_setup_with_nonexistent_script(self, caplog: pytest.LogCaptureFixture) -> None:
         """Test setup with nonexistent script."""
         # Scripts that don't exist should be skipped with a warning
         async with DependencyManager(scripts=["/nonexistent/script.py"]) as manager:

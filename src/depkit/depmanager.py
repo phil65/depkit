@@ -372,9 +372,7 @@ class DependencyManager:
 
             # Add PEP 723 requirements from extra paths
             for path in self.extra_paths:
-                if Path(path).is_dir() and (
-                    new_deps := await scan_directory_deps_async(path)
-                ):
+                if Path(path).is_dir() and (new_deps := await scan_directory_deps_async(path)):
                     logger.debug("Found dependencies in %s: %s", path, new_deps)
                     requirements.update(new_deps)
 
