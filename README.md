@@ -9,7 +9,6 @@
 [![Implementation](https://img.shields.io/pypi/implementation/depkit.svg)](https://pypi.org/project/depkit/)
 [![Releases](https://img.shields.io/github/downloads/phil65/depkit/total.svg)](https://github.com/phil65/depkit/releases)
 [![Github Contributors](https://img.shields.io/github/contributors/phil65/depkit)](https://github.com/phil65/depkit/graphs/contributors)
-[![Github Discussions](https://img.shields.io/github/discussions/phil65/depkit)](https://github.com/phil65/depkit/discussions)
 [![Github Forks](https://img.shields.io/github/forks/phil65/depkit)](https://github.com/phil65/depkit/forks)
 [![Github Issues](https://img.shields.io/github/issues/phil65/depkit)](https://github.com/phil65/depkit/issues)
 [![Github Issues](https://img.shields.io/github/issues-pr/phil65/depkit)](https://github.com/phil65/depkit/pulls)
