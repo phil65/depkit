@@ -2,7 +2,7 @@
 
 [project]
 name = "depkit"
-version = "1.0.3"
+version = "1.0.4"
 description = "Install Python dependencies at runtime via pip or uv, with PEP 723 script support."
 readme = "README.md"
 requires-python = ">=3.13"
