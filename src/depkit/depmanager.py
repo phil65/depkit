@@ -273,7 +273,7 @@ class DependencyManager:
 
     def verify_import_path(self, import_path: str) -> None:
         """Verify that an import path matches available modules."""
-        module_name = import_path.split(".")[0]
+        module_name = import_path.split(".", maxsplit=1)[0]
         if module_name not in self._module_map:
             msg = (
                 f"Import path {import_path!r} references unknown module. "

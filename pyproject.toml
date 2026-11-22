@@ -27,6 +27,7 @@ classifiers = [
 dependencies = [
   "packaging>=25.0",
   # Only add below (Copier)
+  "universal-pathlib>=0.2.6",
   "upathtools>=0.6.5",
 ]
 

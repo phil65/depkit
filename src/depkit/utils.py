@@ -222,7 +222,7 @@ def install_requirements(
 def ensure_importable(import_path: str) -> None:
     """Ensure a module can be imported."""
     try:
-        module_name = import_path.split(".")[0]
+        module_name = import_path.split(".", maxsplit=1)[0]
         importlib.import_module(module_name)
     except ImportError as exc:
         installed = {dist.name for dist in importlib.metadata.distributions()}
