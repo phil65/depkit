@@ -23,176 +23,128 @@
 [![Package status](https://codecov.io/gh/phil65/depkit/branch/main/graph/badge.svg)](https://codecov.io/gh/phil65/depkit/)
 [![PyUp](https://pyup.io/repos/github/phil65/depkit/shield.svg)](https://pyup.io/repos/github/phil65/depkit/)
 
-# DependencyManager
+Install Python packages at runtime, programmatically.
 
-A flexible Python dependency manager that handles runtime dependencies and script imports.
+DepKit's `DependencyManager` makes sure a set of requirements is available in the current
+virtual environment before your code imports them. Requirements can be listed explicitly,
+read from [PEP 723](https://peps.python.org/pep-0723/) inline script metadata, or collected
+from the `.py` files in extra import paths. Packages are installed with `pip` or `uv pip`.
 
-## Quick Start
-
-```python
-from depkit import DependencyManager
-
-# Simple usage
-manager = DependencyManager(requirements=["requests>=2.31.0"])
-manager.install()
-import requests
-
-# ... do your work ...
-manager.uninstall()  # optional cleanup
-```
-
-## Recommended Usage (Context Managers)
-
-```python
-# Synchronous
-with DependencyManager(requirements=["requests"]) as manager:
-    import requests
-    # ... do your work ...
-    # cleanup happens automatically
-
-# Asynchronous
-async with DependencyManager(requirements=["requests"]) as manager:
-    import requests
-    # ... do your work ...
-    # cleanup happens automatically
-```
-
-## Features
-
-- Simple install/uninstall methods for quick usage
-- Context managers for proper resource management
-- PEP 723 dependency declaration support
-- Support for both pip and uv package managers
-- Custom pip index URL support
-- Temporary script importing
-- Path management for imports
+Documentation: <https://phil65.github.io/depkit/>
 
 ## Installation
 
 ```bash
 pip install depkit
+# or
+uv add depkit
 ```
 
-## Basic Usage
+## Quick start
 
-The DependencyManager supports both synchronous and asynchronous context managers:
-
-### Async Usage
 ```python
 from depkit import DependencyManager
 
-async with DependencyManager(
-    requirements=["requests>=2.31.0", "pandas"], prefer_uv=True
-) as manager:
+with DependencyManager(requirements=["requests>=2.31.0"]) as manager:
     import requests
-    import pandas
+
+    print(manager.get_installed_requirements())
 ```
 
-### Sync Usage
+Requirements that are already installed are skipped; missing ones are installed on entry.
+The async variant works the same way:
+
 ```python
-from depkit import DependencyManager
-
-with DependencyManager(requirements=["requests>=2.31.0", "pandas"], prefer_uv=True) as manager:
+async with DependencyManager(requirements=["requests"], prefer_uv=True) as manager:
     import requests
-    import pandas
 ```
 
-## Working with Scripts
+Without a context manager, call `install()` and (optionally) `uninstall()` yourself:
 
-The DependencyManager can handle scripts with PEP 723 dependency declarations:
+```python
+manager = DependencyManager(requirements=["requests"])
+manager.install()
+import requests
+
+manager.uninstall()  # removes temporary files
+```
+
+## Features
+
+- Sync and async context managers, or plain `install()` / `uninstall()`
+- PEP 723 inline script metadata: dependencies and `requires-python` checks
+- Scripts listed in `scripts` become importable modules (by file stem)
+- `extra_paths` are added to `sys.path` and scanned for PEP 723 dependencies
+- Uses `uv pip` when uv is available (on PATH or in a uv environment), otherwise `python -m pip`
+- Custom package index via `pip_index_url`
+- Refuses to install outside a virtual environment unless `force_install=True`
+
+## Working with scripts
+
+Given a script with PEP 723 metadata:
 
 ```python
 # example_script.py
 # /// script
 # dependencies = [
 #   "requests>=2.31.0",
-#   "pandas>=2.0.0"
 # ]
-# requires-python = ">=3.12"
+# requires-python = ">=3.13"
 # ///
 
 import requests
-import pandas as pd
+
+
+def fetch(url: str) -> int:
+    return requests.get(url).status_code
 ```
 
-Load and use the script:
+DepKit installs its dependencies and makes it importable:
 
 ```python
-async with DependencyManager(
-    scripts=["path/to/example_script.py"],
-    extra_paths=["."],  # Add paths to Python's import path
-) as manager:
-    # Script's dependencies are installed automatically
-    from example_script import some_function
+with DependencyManager(scripts=["path/to/example_script.py"]) as manager:
+    from example_script import fetch
 ```
 
-## Configuration Options
+You can also install a single requirement or a script's dependencies directly:
+
+```python
+manager = DependencyManager()
+manager.install_dependency("rich>=13")
+manager.install_script("path/to/example_script.py")
+```
+
+## Configuration
 
 ```python
 DependencyManager(
-    prefer_uv: bool = False,          # Prefer uv over pip if available
-    requirements: list[str] = None,   # List of PEP 508 requirement specifiers
-    extra_paths: list[str] = None,    # Additional Python import paths
-    scripts: list[str] = None,        # Scripts to load and process
-    pip_index_url: str = None,        # Custom PyPI index URL
+    requirements=None,  # list of PEP 508 requirement strings
+    prefer_uv=False,  # prefer `uv pip` (warns if uv is not found)
+    extra_paths=None,  # directories added to sys.path and scanned for PEP 723 deps
+    scripts=None,  # PEP 723 scripts to load as importable modules
+    pip_index_url=None,  # custom package index URL
+    force_install=False,  # allow installing outside a virtual environment
 )
 ```
 
-## Features in Detail
+## Error handling
 
-### UV Integration
-
-The manager automatically detects and can use uv for faster package installation:
+All errors derive from `DependencyError` (`ScriptError` for invalid script metadata):
 
 ```python
-manager = DependencyManager(prefer_uv=True)
-```
-
-### Custom Package Index
-
-Specify a custom PyPI index:
-
-```python
-manager = DependencyManager(
-    requirements=["private-package>=1.0.0"], pip_index_url="https://private.pypi.org/simple"
-)
-```
-
-### Path Management
-
-Add custom import paths:
-
-```python
-manager = DependencyManager(
-    extra_paths=[
-        "./src",
-        "./lib",
-    ]
-)
-```
-
-### Error Handling
-
-```python
-from depkit import DependencyError
+from depkit import DependencyError, DependencyManager
 
 try:
-    async with DependencyManager(requirements=["nonexistent-package"]):
+    with DependencyManager(requirements=["nonexistent-package-xyz"]):
         pass
 except DependencyError as e:
     print(f"Dependency management failed: {e}")
 ```
 
-## Best Practices
-
-1. Use as a context manager to ensure proper cleanup
-2. Specify exact version requirements when possible
-3. Use PEP 723 for script dependencies
-4. Handle DependencyError exceptions appropriately
-5. Consider using uv in production for better performance
-
 ## Limitations
 
-- Requires Python 3.12 or higher
-- Some features may not work on all platforms
-- UV support requires uv to be installed separately
+- Requires Python 3.13 or newer.
+- Already-installed packages are detected by name only; version specifiers of installed
+  packages are not re-checked.
+- Changes to `sys.path` made via `extra_paths` are not undone on cleanup.
+- uv support requires `uv` to be installed separately.
