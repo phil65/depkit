@@ -36,6 +36,7 @@ from depkit import DependencyManager
 manager = DependencyManager(requirements=["requests>=2.31.0"])
 manager.install()
 import requests
+
 # ... do your work ...
 manager.uninstall()  # optional cleanup
 ```
@@ -81,8 +82,7 @@ The DependencyManager supports both synchronous and asynchronous context manager
 from depkit import DependencyManager
 
 async with DependencyManager(
-    requirements=["requests>=2.31.0", "pandas"],
-    prefer_uv=True
+    requirements=["requests>=2.31.0", "pandas"], prefer_uv=True
 ) as manager:
     import requests
     import pandas
@@ -92,10 +92,7 @@ async with DependencyManager(
 ```python
 from depkit import DependencyManager
 
-with DependencyManager(
-    requirements=["requests>=2.31.0", "pandas"],
-    prefer_uv=True
-) as manager:
+with DependencyManager(requirements=["requests>=2.31.0", "pandas"], prefer_uv=True) as manager:
     import requests
     import pandas
 ```
@@ -123,7 +120,7 @@ Load and use the script:
 ```python
 async with DependencyManager(
     scripts=["path/to/example_script.py"],
-    extra_paths=["."]  # Add paths to Python's import path
+    extra_paths=["."],  # Add paths to Python's import path
 ) as manager:
     # Script's dependencies are installed automatically
     from example_script import some_function
@@ -157,8 +154,7 @@ Specify a custom PyPI index:
 
 ```python
 manager = DependencyManager(
-    requirements=["private-package>=1.0.0"],
-    pip_index_url="https://private.pypi.org/simple"
+    requirements=["private-package>=1.0.0"], pip_index_url="https://private.pypi.org/simple"
 )
 ```
 
